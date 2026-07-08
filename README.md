@@ -1,21 +1,100 @@
-```txt
-npm install
-npm run dev
-```
+# 職人かんたん請求書
 
-```txt
-npm run deploy
-```
+建築業の一人親方向け、超シンプルな請求書管理システムです。
 
-[For generating/synchronizing types based on your Worker configuration run](https://developers.cloudflare.com/workers/wrangler/commands/#types):
+## プロジェクト概要
+- **名前**: 職人かんたん請求書 (shokunin-invoice)
+- **目的**: リテラシーの低い職人でも迷わず使える、無駄な機能を排除した請求書作成システム
+- **コンセプト**: 仕入れ書類の写真を撮るだけでAIが自動で項目を読み取り、宛名と手数料％を入力するだけで簡単に請求書が作れる
 
-```txt
-npm run cf-typegen
-```
+## 主な機能(完了済み)
+1. **仕入れ書類の画像取込 + AI自動読取(OCR)**
+   - 見積書・請求書・レシートの写真をアップロードすると、OpenAI Vision(gpt-5)が自動で
+     業者名・日付・品目・数量・金額を読み取り、明細として登録
+   - 読み取り結果は手動で修正・追加・削除が可能
+2. **顧客(宛名)管理**
+   - 顧客ごとに仕入れ履歴・請求書履歴を一覧管理
+   - 取り込んだ仕入れ画像も顧客に紐づけて後から確認可能
+3. **請求書かんたん作成**
+   - 顧客を選ぶと、未請求の仕入れ項目一覧が表示される
+   - 使う項目にチェック → 手数料％・消費税％を入力するだけで自動計算
+   - 計算式: 請求額 = (仕入れ原価 × (1 + 手数料%)) × (1 + 消費税%)
+   - 一度請求書に使った仕入れ項目は「使用済み」として二重請求を防止
+4. **請求書の印刷・PDF化**
+   - ブラウザの印刷機能でそのままPDF保存・印刷が可能な請求書レイアウト
+   - 自社情報・振込先口座を設定画面で1回登録すれば自動で印字
+5. **簡単ログイン(合言葉)**
+   - 初回起動時に合言葉(パスワード)を設定するだけのシンプル認証
+   - 外部から画像や顧客情報が見られないよう保護
 
-Pass the `CloudflareBindings` as generics when instantiation `Hono`:
+## 画面構成 / URL(SPAのためハッシュルーティング)
+| 画面 | ハッシュ | 説明 |
+|---|---|---|
+| ホーム | `#/home` | 3つの大きなボタン(仕入れ取込/請求書作成/顧客管理)、最近の請求書 |
+| 顧客一覧 | `#/customers` | 顧客の追加・一覧 |
+| 顧客詳細 | `#/customer/:id` | 仕入れ履歴・請求書履歴・編集 |
+| 仕入れ取込 | `#/upload` または `#/upload/:customerId` | 画像アップロード→OCR結果確認・修正 |
+| 請求書作成 | `#/invoice-new` または `#/invoice-new/:customerId` | 項目選択・手数料/税率入力・プレビュー |
+| 請求書表示(印刷) | `#/invoice-view/:id` | 印刷用レイアウト、ステータス変更、削除 |
+| 設定 | `#/settings` | 自社情報・振込先・初期手数料/税率・合言葉変更 |
 
-```ts
-// src/index.ts
-const app = new Hono<{ Bindings: CloudflareBindings }>()
-```
+## API エンドポイント一覧
+- `GET/POST /api/auth/status|setup|login|logout|change-password`
+- `GET/PUT /api/settings`
+- `GET/POST/PUT/DELETE /api/customers`, `/api/customers/:id`
+- `GET/POST/PUT/DELETE /api/purchases`, `/api/purchases/:id`, `/api/purchases/:id/image`
+- `PUT/DELETE /api/purchases/items/:itemId`, `POST /api/purchases/:id/items`
+- `GET /api/invoices/available-items?customer_id=`
+- `GET/POST/PUT/DELETE /api/invoices`, `/api/invoices/:id`
+
+## データ構造・保存先
+- **Cloudflare D1 (SQLite)**: `settings`(自社設定・合言葉)、`customers`(顧客)、
+  `purchases`(仕入れ書類メタ情報)、`purchase_items`(仕入れ明細)、
+  `invoices`(請求書)、`invoice_items`(請求書明細)
+- **Cloudflare R2**: 取り込んだ仕入れ書類の画像本体を保存(`purchases/xxxx`キー)
+- **OpenAI互換API (gpt-5)**: 画像から項目を自動抽出するOCR処理に使用
+
+## 金額計算ロジック
+1. 仕入れ原価ごとに手数料%を掛けて請求額を算出(項目単位)
+2. 手数料込み合計に対して消費税%を計算
+3. 合計 = 手数料込み小計 + 消費税
+
+例: 原価 39,000円、手数料20%、税10% の場合
+→ 46,800円(手数料込み) → 消費税4,680円 → **合計51,480円**
+
+## 使い方(ユーザーガイド)
+1. 初回アクセス時に「合言葉」を設定してログイン
+2. 「設定」画面で屋号・住所・振込先口座・初期手数料/税率を登録
+3. 「お客様管理」で新しい顧客(宛名)を追加
+4. 「仕入れ取込」で見積書・請求書・レシートを撮影 → AIが自動で内容を読み取り
+   → 内容を確認・修正して保存(顧客に紐付け可能)
+5. 「請求書を作る」で顧客を選び、使う仕入れ項目にチェック → 手数料%・税率%を確認
+   → 「請求書を作成する」
+6. 完成した請求書画面で印刷アイコンから印刷 or PDF保存
+
+## 技術スタック
+- **バックエンド**: Hono (Cloudflare Workers/Pages)
+- **フロントエンド**: バニラJS(SPA) + Tailwind CSS(CDN) + axios
+- **データベース**: Cloudflare D1 (SQLite)
+- **画像保存**: Cloudflare R2
+- **OCR/AI**: OpenAI互換API (gpt-5, Vision機能)
+- **認証**: Cookie + HMAC署名セッショントークン(Web Crypto API)
+
+## 未実装 / 今後の拡張候補
+- 請求書のCSV/Excelエクスポート
+- 複数の請求書をまとめた月次レポート
+- 顧客・仕入れ先の検索機能
+- 請求書番号のカスタムフォーマット強化
+- 消費税の軽減税率(8%)対応
+- オフライン対応(PWA化)
+
+## デプロイ状況
+- **ステータス**: ローカル開発環境で動作確認済み(D1/R2ローカルモード)
+- 本番デプロイには Cloudflare アカウントでの D1データベース・R2バケットの作成、
+  および `OPENAI_API_KEY` のシークレット設定が必要です
+
+## 環境変数
+- `OPENAI_API_KEY`: OpenAI互換APIキー(OCR処理に使用、`wrangler pages secret put`で設定)
+- `OPENAI_BASE_URL`: OpenAI互換APIのベースURL
+
+最終更新日: 2026-07-08
