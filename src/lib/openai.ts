@@ -39,10 +39,17 @@ export async function extractPurchaseFromImage(
   apiKey: string,
   baseUrl: string,
   imageBase64: string,
-  contentType: string
+  contentType: string,
+  fileName?: string
 ): Promise<OcrResult> {
   const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`
+  const isPdf = contentType === 'application/pdf'
   const dataUrl = `data:${contentType};base64,${imageBase64}`
+
+  // PDFの場合は "file" コンテンツ形式、画像の場合は従来の "image_url" 形式で送信
+  const fileContent = isPdf
+    ? { type: 'file', file: { filename: fileName || 'document.pdf', file_data: dataUrl } }
+    : { type: 'image_url', image_url: { url: dataUrl } }
 
   const body = {
     model: 'gpt-5-mini',
@@ -51,8 +58,8 @@ export async function extractPurchaseFromImage(
       {
         role: 'user',
         content: [
-          { type: 'text', text: 'この画像から仕入れ情報を抽出してJSONで返してください。' },
-          { type: 'image_url', image_url: { url: dataUrl } },
+          { type: 'text', text: `この${isPdf ? 'PDF' : '画像'}から仕入れ情報を抽出してJSONで返してください。` },
+          fileContent,
         ],
       },
     ],

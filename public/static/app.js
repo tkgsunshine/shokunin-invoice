@@ -23,6 +23,28 @@
     return dayjs().format('YYYY-MM-DD');
   }
 
+  // 仕入れ書類のサムネイル/プレビューHTML（画像はimg、PDFはアイコン+リンク）
+  function mediaThumbHtml(purchase, sizeClass) {
+    const url = `/api/purchases/${purchase.id}/image`;
+    if (purchase.image_content_type === 'application/pdf') {
+      return `<a href="${url}" target="_blank" class="${sizeClass} rounded-lg border bg-red-50 flex flex-col items-center justify-center text-red-500 shrink-0">
+        <i class="fas fa-file-pdf text-2xl"></i>
+      </a>`;
+    }
+    return `<img src="${url}" class="${sizeClass} object-cover rounded-lg border shrink-0" />`;
+  }
+
+  function mediaPreviewHtml(purchase) {
+    const url = `/api/purchases/${purchase.id}/image`;
+    if (purchase.image_content_type === 'application/pdf') {
+      return `<a href="${url}" target="_blank" class="w-full h-40 rounded-lg border mb-4 bg-red-50 flex flex-col items-center justify-center text-red-500 hover:bg-red-100">
+        <i class="fas fa-file-pdf text-5xl mb-2"></i>
+        <span class="text-sm font-bold">PDFを開く</span>
+      </a>`;
+    }
+    return `<img src="${url}" class="w-full max-h-64 object-contain rounded-lg border mb-4 bg-gray-50" />`;
+  }
+
   function showToast(msg, isError) {
     const el = document.createElement('div');
     el.className = 'toast';
@@ -372,7 +394,7 @@
         ${purchases.map((p) => `
           <a href="#/purchase/${p.id}" class="card p-3 flex justify-between items-center hover:shadow-md">
             <div class="flex items-center gap-3">
-              <img src="/api/purchases/${p.id}/image" class="w-12 h-12 object-cover rounded-lg border" />
+              ${mediaThumbHtml(p, 'w-12 h-12')}
               <div>
                 <div class="font-bold">${esc(p.vendor_name || '(不明)')}</div>
                 <div class="text-xs text-gray-500">${esc(p.purchase_date || '')} ・ ${esc(p.document_type || '')}</div>
@@ -406,7 +428,7 @@
         ${purchases.map((p) => `
           <div class="card p-4">
             <div class="flex gap-3 mb-3">
-              <img src="/api/purchases/${p.id}/image" class="w-16 h-16 object-cover rounded-lg border" />
+              ${mediaThumbHtml(p, 'w-16 h-16')}
               <div class="flex-1">
                 <div class="font-bold">${esc(p.vendor_name || '(不明)')}</div>
                 <div class="text-xs text-gray-500">${esc(p.purchase_date || '')} ・ ${esc(p.document_type || '')}</div>
@@ -448,10 +470,10 @@
           <div class="w-24 h-24 mx-auto rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-4xl mb-3">
             <i class="fas fa-camera"></i>
           </div>
-          <div class="font-bold text-lg">タップして撮影 / 画像を選択</div>
-          <div class="text-sm text-gray-500 mt-1">見積書・請求書・レシートの写真</div>
+          <div class="font-bold text-lg">タップして撮影 / ファイルを選択</div>
+          <div class="text-sm text-gray-500 mt-1">見積書・請求書・レシートの写真 または PDF</div>
         </label>
-        <input id="file-input" type="file" accept="image/*" capture="environment" class="file-hidden" />
+        <input id="file-input" type="file" accept="image/*,application/pdf,.pdf" class="file-hidden" />
       </div>
       <label class="text-sm text-gray-500">お客さん（あとで割り当ても可）</label>
       <select id="pre-customer" class="w-full border rounded-lg p-3 mb-2 big-tap">
@@ -464,14 +486,26 @@
       const file = e.target.files[0];
       if (!file) return;
       const customerId = document.getElementById('pre-customer').value;
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
 
       const previewArea = document.getElementById('preview-area');
-      const previewUrl = URL.createObjectURL(file);
-      previewArea.innerHTML = `
-        <div class="card p-4 mb-4 text-center">
-          <img src="${previewUrl}" class="max-h-48 mx-auto rounded-lg mb-3" />
-          <div class="text-gray-500"><div class="spinner mx-auto mb-2"></div>読み取り中...</div>
-        </div>`;
+      if (isPdf) {
+        previewArea.innerHTML = `
+          <div class="card p-4 mb-4 text-center">
+            <div class="w-20 h-20 mx-auto rounded-lg bg-red-50 flex items-center justify-center text-red-500 mb-3">
+              <i class="fas fa-file-pdf text-3xl"></i>
+            </div>
+            <div class="text-sm text-gray-600 mb-2">${esc(file.name)}</div>
+            <div class="text-gray-500"><div class="spinner mx-auto mb-2"></div>読み取り中...</div>
+          </div>`;
+      } else {
+        const previewUrl = URL.createObjectURL(file);
+        previewArea.innerHTML = `
+          <div class="card p-4 mb-4 text-center">
+            <img src="${previewUrl}" class="max-h-48 mx-auto rounded-lg mb-3" />
+            <div class="text-gray-500"><div class="spinner mx-auto mb-2"></div>読み取り中...</div>
+          </div>`;
+      }
 
       const formData = new FormData();
       formData.append('image', file);
@@ -483,10 +517,14 @@
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         showLoading(false);
+        if (result.data.ocr_error) {
+          showToast('保存しましたが、自動読み取りに失敗しました。手動で入力してください', true);
+        }
         location.hash = `#/purchase/${result.data.id}`;
       } catch (err) {
         showLoading(false);
-        showToast('取り込みに失敗しました', true);
+        const msg = (err.response && err.response.data && err.response.data.error) || '取り込みに失敗しました';
+        showToast(msg, true);
       }
     };
   });
@@ -506,7 +544,7 @@
         <button onclick="history.back()" class="text-blue-600 text-sm"><i class="fas fa-chevron-left mr-1"></i>戻る</button>
       </div>
       <div class="card p-4 mb-4">
-        <img src="/api/purchases/${purchase.id}/image" class="w-full max-h-64 object-contain rounded-lg border mb-4 bg-gray-50" />
+        ${mediaPreviewHtml(purchase)}
 
         <label class="text-sm text-gray-500">お客さん</label>
         <select id="p-customer" class="w-full border rounded-lg p-3 mb-3 big-tap">

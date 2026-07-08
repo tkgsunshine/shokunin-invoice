@@ -73,21 +73,39 @@ purchases.post('/upload', async (c) => {
     return c.json({ error: '画像ファイルが必要です' }, 400)
   }
 
-  const contentType = file.type || 'image/jpeg'
+  let contentType = file.type || 'image/jpeg'
+  // ブラウザ/OS依存でPDFのMIMEタイプが空・不正になるケースをファイル名から補正
+  if ((!contentType || contentType === 'application/octet-stream') && /\.pdf$/i.test(file.name || '')) {
+    contentType = 'application/pdf'
+  }
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf']
+  if (!allowedTypes.includes(contentType)) {
+    return c.json({ error: '対応していないファイル形式です（画像またはPDFのみ）' }, 400)
+  }
+
   const arrayBuffer = await file.arrayBuffer()
 
   // R2に保存
-  const ext = contentType.split('/')[1] || 'jpg'
+  const extMap: Record<string, string> = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/gif': 'gif',
+    'application/pdf': 'pdf',
+  }
+  const ext = extMap[contentType] || 'bin'
   const imageKey = `purchases/${Date.now()}-${randomHex(6)}.${ext}`
   await c.env.R2.put(imageKey, arrayBuffer, { httpMetadata: { contentType } })
 
   // OCR実行
   const base64 = arrayBufferToBase64(arrayBuffer)
   let ocrResult
+  let ocrError: string | null = null
   try {
-    ocrResult = await extractPurchaseFromImage(c.env.OPENAI_API_KEY, c.env.OPENAI_BASE_URL, base64, contentType)
+    ocrResult = await extractPurchaseFromImage(c.env.OPENAI_API_KEY, c.env.OPENAI_BASE_URL, base64, contentType, file.name)
   } catch (e: any) {
-    // OCR失敗しても画像は保存し、空データで返す
+    // OCR失敗しても画像/PDFは保存し、空データで返す
+    ocrError = e?.message ? String(e.message).slice(0, 500) : 'OCR処理でエラーが発生しました'
     ocrResult = {
       vendor_name: '',
       document_type: '',
@@ -131,11 +149,13 @@ purchases.post('/upload', async (c) => {
     purchase_date: ocrResult.purchase_date,
     total_amount: ocrResult.total_amount,
     image_key: imageKey,
+    content_type: contentType,
     items: ocrResult.items,
+    ocr_error: ocrError,
   })
 })
 
-// 画像取得
+// 画像/PDF取得
 purchases.get('/:id/image', async (c) => {
   const id = c.req.param('id')
   const purchase = await c.env.DB.prepare('SELECT image_key, image_content_type FROM purchases WHERE id = ?')
