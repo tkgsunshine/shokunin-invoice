@@ -1,32 +1,30 @@
 import { Hono } from 'hono'
-import { renderer } from './renderer'
-import { serveStatic } from 'hono/cloudflare-workers'
-import type { Bindings } from './lib/types'
-import { requireAuth } from './lib/middleware'
-import authRoutes from './routes/auth'
-import settingsRoutes from './routes/settings'
-import customersRoutes from './routes/customers'
-import purchasesRoutes from './routes/purchases'
-import invoicesRoutes from './routes/invoices'
+import type { Bindings } from './types'
+import { authMiddleware } from './lib/auth'
+import authRoute from './routes/auth'
+import settingsRoute from './routes/settings'
+import customersRoute from './routes/customers'
+import purchasesRoute from './routes/purchases'
+import invoicesRoute from './routes/invoices'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
-app.use('/static/*', serveStatic({ root: './public' }))
-app.use(renderer)
+// 認証系ルートは認証不要
+app.route('/api/auth', authRoute)
 
-// 認証関連は認証不要でアクセス可(ログイン/ステータス確認/初期設定のため)
-app.route('/api/auth', authRoutes)
+// それ以外のAPIは認証必須
+app.use('/api/settings/*', authMiddleware)
+app.use('/api/customers/*', authMiddleware)
+app.use('/api/purchases/*', authMiddleware)
+app.use('/api/invoices/*', authMiddleware)
 
-// それ以外のAPIは合言葉設定済みならログイン必須
-app.use('/api/*', requireAuth)
+app.route('/api/settings', settingsRoute)
+app.route('/api/customers', customersRoute)
+app.route('/api/purchases', purchasesRoute)
+app.route('/api/invoices', invoicesRoute)
 
-app.route('/api/settings', settingsRoutes)
-app.route('/api/customers', customersRoutes)
-app.route('/api/purchases', purchasesRoutes)
-app.route('/api/invoices', invoicesRoutes)
-
-app.get('*', (c) => {
-  return c.render(<div id="app"></div>)
-})
+// 静的ファイル・SPAのフォールバックはCloudflare Pagesが public/ を
+// そのまま配信するため、ここではAPI以外のルートを定義しない
+// (public/_routes.json でAPI以外を静的配信に回している)
 
 export default app

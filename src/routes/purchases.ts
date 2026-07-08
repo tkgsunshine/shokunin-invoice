@@ -1,90 +1,100 @@
 import { Hono } from 'hono'
-import type { Bindings } from '../lib/types'
-import { analyzeReceiptImage } from '../lib/ocr'
+import type { Bindings } from '../types'
+import { extractPurchaseFromImage } from '../lib/openai'
+import { randomHex } from '../lib/crypto'
 
 const purchases = new Hono<{ Bindings: Bindings }>()
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer)
-  let binary = ''
-  const chunkSize = 0x8000
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
-  }
-  return btoa(binary)
-}
-
-// 一覧(customer_id指定で絞り込み可)
+// 一覧（顧客未割当も含む）
 purchases.get('/', async (c) => {
   const customerId = c.req.query('customer_id')
-  let query = 'SELECT * FROM purchases'
+  const unassigned = c.req.query('unassigned')
+
+  let query = `SELECT p.*, cu.name as customer_name FROM purchases p LEFT JOIN customers cu ON cu.id = p.customer_id`
+  const conditions: string[] = []
   const binds: any[] = []
+
   if (customerId) {
-    query += ' WHERE customer_id = ?'
+    conditions.push('p.customer_id = ?')
     binds.push(customerId)
   }
-  query += ' ORDER BY created_at DESC'
-  const stmt = c.env.DB.prepare(query)
-  const { results } = await (binds.length ? stmt.bind(...binds) : stmt).all()
+  if (unassigned === '1') {
+    conditions.push('p.customer_id IS NULL')
+  }
+  if (conditions.length) query += ' WHERE ' + conditions.join(' AND ')
+  query += ' ORDER BY p.created_at DESC'
+
+  const { results } = await c.env.DB.prepare(query)
+    .bind(...binds)
+    .all()
   return c.json(results)
 })
 
-// 詳細(明細つき)
+// 顧客ごとの未使用（請求書未反映）明細一覧（請求書作成画面用）
+purchases.get('/items/available', async (c) => {
+  const customerId = c.req.query('customer_id')
+  if (!customerId) return c.json({ error: 'customer_idが必要です' }, 400)
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT pi.*, p.vendor_name, p.document_type, p.purchase_date, p.id as purchase_id
+     FROM purchase_items pi
+     JOIN purchases p ON p.id = pi.purchase_id
+     WHERE p.customer_id = ? AND pi.used_in_invoice_id IS NULL
+     ORDER BY p.purchase_date DESC, pi.sort_order`
+  )
+    .bind(customerId)
+    .all()
+
+  return c.json(results)
+})
+
+// 詳細（明細含む）
 purchases.get('/:id', async (c) => {
   const id = c.req.param('id')
   const purchase = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first()
   if (!purchase) return c.json({ error: '見つかりません' }, 404)
+
   const { results: items } = await c.env.DB.prepare(
     'SELECT * FROM purchase_items WHERE purchase_id = ? ORDER BY sort_order, id'
   )
     .bind(id)
     .all()
+
   return c.json({ purchase, items })
 })
 
-// 画像取得
-purchases.get('/:id/image', async (c) => {
-  const id = c.req.param('id')
-  const purchase = await c.env.DB.prepare('SELECT image_key, image_content_type FROM purchases WHERE id = ?')
-    .bind(id)
-    .first<{ image_key: string | null; image_content_type: string | null }>()
-  if (!purchase?.image_key) return c.notFound()
-  const object = await c.env.R2.get(purchase.image_key)
-  if (!object) return c.notFound()
-  return new Response(object.body, {
-    headers: {
-      'Content-Type': purchase.image_content_type || 'image/jpeg',
-      'Cache-Control': 'private, max-age=3600',
-    },
-  })
-})
+// 画像アップロード + OCR取り込み
+purchases.post('/upload', async (c) => {
+  const form = await c.req.formData()
+  const file = form.get('image') as File | null
+  const customerId = form.get('customer_id') as string | null
 
-// アップロード + OCR自動抽出
-purchases.post('/', async (c) => {
-  const body = await c.req.parseBody()
-  const file = body['image'] as File | undefined
-  const customerId = body['customer_id'] ? Number(body['customer_id']) : null
-
-  if (!file || typeof file === 'string') {
+  if (!file) {
     return c.json({ error: '画像ファイルが必要です' }, 400)
   }
 
-  const arrayBuffer = await file.arrayBuffer()
   const contentType = file.type || 'image/jpeg'
-  const imageKey = `purchases/${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  const arrayBuffer = await file.arrayBuffer()
 
-  await c.env.R2.put(imageKey, arrayBuffer, {
-    httpMetadata: { contentType },
-  })
+  // R2に保存
+  const ext = contentType.split('/')[1] || 'jpg'
+  const imageKey = `purchases/${Date.now()}-${randomHex(6)}.${ext}`
+  await c.env.R2.put(imageKey, arrayBuffer, { httpMetadata: { contentType } })
 
+  // OCR実行
+  const base64 = arrayBufferToBase64(arrayBuffer)
   let ocrResult
-  let ocrError: string | null = null
   try {
-    const base64 = arrayBufferToBase64(arrayBuffer)
-    const dataUrl = `data:${contentType};base64,${base64}`
-    ocrResult = await analyzeReceiptImage(c.env.OPENAI_API_KEY, c.env.OPENAI_BASE_URL, dataUrl)
+    ocrResult = await extractPurchaseFromImage(c.env.OPENAI_API_KEY, c.env.OPENAI_BASE_URL, base64, contentType)
   } catch (e: any) {
-    ocrError = e?.message || '画像の読み取りに失敗しました'
+    // OCR失敗しても画像は保存し、空データで返す
+    ocrResult = {
+      vendor_name: '',
+      document_type: '',
+      purchase_date: '',
+      total_amount: 0,
+      items: [],
+    }
   }
 
   const result = await c.env.DB.prepare(
@@ -92,110 +102,118 @@ purchases.post('/', async (c) => {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
-      customerId,
-      ocrResult?.vendor_name ?? '',
-      ocrResult?.document_type ?? '',
-      ocrResult?.purchase_date ?? '',
+      customerId || null,
+      ocrResult.vendor_name,
+      ocrResult.document_type,
+      ocrResult.purchase_date,
       imageKey,
       contentType,
-      ocrResult?.total_amount ?? 0,
-      ocrResult ? JSON.stringify(ocrResult) : null
+      ocrResult.total_amount,
+      JSON.stringify(ocrResult)
     )
     .run()
 
   const purchaseId = result.meta.last_row_id
 
-  if (ocrResult?.items?.length) {
-    const stmts = ocrResult.items.map((item, idx) =>
-      c.env.DB.prepare(
-        'INSERT INTO purchase_items (purchase_id, name, quantity, unit_price, amount, sort_order) VALUES (?, ?, ?, ?, ?, ?)'
-      ).bind(purchaseId, item.name, item.quantity, item.unit_price, item.amount, idx)
+  for (let i = 0; i < ocrResult.items.length; i++) {
+    const it = ocrResult.items[i]
+    await c.env.DB.prepare(
+      `INSERT INTO purchase_items (purchase_id, name, quantity, unit_price, amount, sort_order) VALUES (?, ?, ?, ?, ?, ?)`
     )
-    await c.env.DB.batch(stmts)
+      .bind(purchaseId, it.name, it.quantity, it.unit_price, it.amount, i)
+      .run()
   }
-
-  const { results: items } = await c.env.DB.prepare(
-    'SELECT * FROM purchase_items WHERE purchase_id = ? ORDER BY sort_order, id'
-  )
-    .bind(purchaseId)
-    .all()
 
   return c.json({
     id: purchaseId,
-    ocrError,
-    ocrResult,
-    items,
+    vendor_name: ocrResult.vendor_name,
+    document_type: ocrResult.document_type,
+    purchase_date: ocrResult.purchase_date,
+    total_amount: ocrResult.total_amount,
+    image_key: imageKey,
+    items: ocrResult.items,
   })
 })
 
-// 仕入れ情報の更新(顧客割当、業者名等の修正)
+// 画像取得
+purchases.get('/:id/image', async (c) => {
+  const id = c.req.param('id')
+  const purchase = await c.env.DB.prepare('SELECT image_key, image_content_type FROM purchases WHERE id = ?')
+    .bind(id)
+    .first<{ image_key: string; image_content_type: string }>()
+
+  if (!purchase?.image_key) return c.json({ error: '画像がありません' }, 404)
+
+  const obj = await c.env.R2.get(purchase.image_key)
+  if (!obj) return c.json({ error: '画像が見つかりません' }, 404)
+
+  return new Response(obj.body, {
+    headers: { 'Content-Type': purchase.image_content_type || 'image/jpeg' },
+  })
+})
+
+// 仕入れ情報の更新（顧客割当、業者名、明細の手動修正など）
 purchases.put('/:id', async (c) => {
   const id = c.req.param('id')
-  const body = await c.req.json<any>()
+  const { customer_id, vendor_name, document_type, purchase_date, total_amount, memo } = await c.req.json()
+
   await c.env.DB.prepare(
-    `UPDATE purchases SET customer_id = ?, vendor_name = ?, document_type = ?, purchase_date = ?, total_amount = ?, memo = ?
-     WHERE id = ?`
+    `UPDATE purchases SET customer_id=?, vendor_name=?, document_type=?, purchase_date=?, total_amount=?, memo=? WHERE id=?`
   )
-    .bind(
-      body.customer_id ?? null,
-      body.vendor_name ?? '',
-      body.document_type ?? '',
-      body.purchase_date ?? '',
-      Number(body.total_amount) || 0,
-      body.memo ?? '',
-      id
-    )
+    .bind(customer_id || null, vendor_name ?? '', document_type ?? '', purchase_date ?? '', total_amount ?? 0, memo ?? '', id)
     .run()
+
   return c.json({ success: true })
 })
 
-// 仕入れ削除(画像も削除)
+// 明細の更新
+purchases.put('/:id/items', async (c) => {
+  const purchaseId = c.req.param('id')
+  const { items } = await c.req.json<{ items: { id?: number; name: string; quantity: number; unit_price: number; amount: number }[] }>()
+
+  await c.env.DB.prepare('DELETE FROM purchase_items WHERE purchase_id = ?').bind(purchaseId).run()
+
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i]
+    await c.env.DB.prepare(
+      `INSERT INTO purchase_items (purchase_id, name, quantity, unit_price, amount, sort_order) VALUES (?, ?, ?, ?, ?, ?)`
+    )
+      .bind(purchaseId, it.name, it.quantity, it.unit_price, it.amount, i)
+      .run()
+  }
+
+  const total = items.reduce((s, i) => s + i.amount, 0)
+  await c.env.DB.prepare('UPDATE purchases SET total_amount = ? WHERE id = ?').bind(total, purchaseId).run()
+
+  return c.json({ success: true })
+})
+
+// 削除
 purchases.delete('/:id', async (c) => {
   const id = c.req.param('id')
-  const purchase = await c.env.DB.prepare('SELECT image_key FROM purchases WHERE id = ?')
-    .bind(id)
-    .first<{ image_key: string | null }>()
+  const purchase = await c.env.DB.prepare('SELECT image_key FROM purchases WHERE id = ?').bind(id).first<{
+    image_key: string | null
+  }>()
+
   await c.env.DB.prepare('DELETE FROM purchase_items WHERE purchase_id = ?').bind(id).run()
   await c.env.DB.prepare('DELETE FROM purchases WHERE id = ?').bind(id).run()
+
   if (purchase?.image_key) {
     await c.env.R2.delete(purchase.image_key).catch(() => {})
   }
+
   return c.json({ success: true })
 })
 
-// 明細項目の更新
-purchases.put('/items/:itemId', async (c) => {
-  const itemId = c.req.param('itemId')
-  const body = await c.req.json<any>()
-  const quantity = Number(body.quantity) || 0
-  const unitPrice = Number(body.unit_price) || 0
-  const amount = body.amount !== undefined ? Number(body.amount) || 0 : quantity * unitPrice
-  await c.env.DB.prepare('UPDATE purchase_items SET name = ?, quantity = ?, unit_price = ?, amount = ? WHERE id = ?')
-    .bind(body.name ?? '', quantity, unitPrice, amount, itemId)
-    .run()
-  return c.json({ success: true })
-})
-
-// 明細項目の削除
-purchases.delete('/items/:itemId', async (c) => {
-  const itemId = c.req.param('itemId')
-  await c.env.DB.prepare('DELETE FROM purchase_items WHERE id = ?').bind(itemId).run()
-  return c.json({ success: true })
-})
-
-// 明細項目の追加(手動追加)
-purchases.post('/:id/items', async (c) => {
-  const purchaseId = c.req.param('id')
-  const body = await c.req.json<any>()
-  const quantity = Number(body.quantity) || 1
-  const unitPrice = Number(body.unit_price) || 0
-  const amount = body.amount !== undefined ? Number(body.amount) || 0 : quantity * unitPrice
-  const result = await c.env.DB.prepare(
-    'INSERT INTO purchase_items (purchase_id, name, quantity, unit_price, amount) VALUES (?, ?, ?, ?, ?)'
-  )
-    .bind(purchaseId, body.name ?? '項目', quantity, unitPrice, amount)
-    .run()
-  return c.json({ id: result.meta.last_row_id })
-})
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize)
+    binary += String.fromCharCode(...chunk)
+  }
+  return btoa(binary)
+}
 
 export default purchases

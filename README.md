@@ -1,100 +1,94 @@
-# 職人かんたん請求書
+# かんたん請求書 - 建築業向け請求書管理システム
 
-建築業の一人親方向け、超シンプルな請求書管理システムです。
+一人親方（個人事業主の職人さん）向けの、超シンプルな請求書管理システムです。
+仕入れの見積書・請求書・レシートを撮影するだけでAI(OCR)が自動で項目を読み取り、
+手数料％を設定するだけでお客さん向けの請求書を簡単に作成できます。
 
-## プロジェクト概要
-- **名前**: 職人かんたん請求書 (shokunin-invoice)
-- **目的**: リテラシーの低い職人でも迷わず使える、無駄な機能を排除した請求書作成システム
-- **コンセプト**: 仕入れ書類の写真を撮るだけでAIが自動で項目を読み取り、宛名と手数料％を入力するだけで簡単に請求書が作れる
+## 現在完成している機能
 
-## 主な機能(完了済み)
-1. **仕入れ書類の画像取込 + AI自動読取(OCR)**
-   - 見積書・請求書・レシートの写真をアップロードすると、OpenAI Vision(gpt-5)が自動で
-     業者名・日付・品目・数量・金額を読み取り、明細として登録
-   - 読み取り結果は手動で修正・追加・削除が可能
-2. **顧客(宛名)管理**
-   - 顧客ごとに仕入れ履歴・請求書履歴を一覧管理
-   - 取り込んだ仕入れ画像も顧客に紐づけて後から確認可能
-3. **請求書かんたん作成**
-   - 顧客を選ぶと、未請求の仕入れ項目一覧が表示される
-   - 使う項目にチェック → 手数料％・消費税％を入力するだけで自動計算
-   - 計算式: 請求額 = (仕入れ原価 × (1 + 手数料%)) × (1 + 消費税%)
-   - 一度請求書に使った仕入れ項目は「使用済み」として二重請求を防止
-4. **請求書の印刷・PDF化**
-   - ブラウザの印刷機能でそのままPDF保存・印刷が可能な請求書レイアウト
-   - 自社情報・振込先口座を設定画面で1回登録すれば自動で印字
-5. **簡単ログイン(合言葉)**
-   - 初回起動時に合言葉(パスワード)を設定するだけのシンプル認証
-   - 外部から画像や顧客情報が見られないよう保護
+- **合言葉ログイン**: 初回アクセス時に合言葉（パスワード）を設定。以後はログインが必要（30日間セッション保持）
+- **お客さん（宛名）管理**: 顧客ごとに氏名・住所・電話番号を登録・編集・削除
+- **仕入れ書類の取り込み（OCR自動読取）**:
+  - スマホのカメラで撮影 or 画像選択でアップロード
+  - OpenAI(GPT-5-mini Vision)が仕入先名・書類種別・日付・合計金額・明細（品目/数量/単価/金額）を自動抽出
+  - 抽出結果は手動で修正可能
+  - 画像自体もCloudflare R2に保存され、後から確認できる
+  - お客さんへの割り当て（未割当の一覧表示あり）
+- **請求書作成**:
+  - お客さんを選択すると、そのお客さんに紐づく「まだ請求書に使っていない仕入れ明細」が一覧表示され、チェックで選択
+  - 手動での明細追加も可能
+  - 手数料％（原価×(1+手数料%)を明細ごとに計算）と消費税％を入力すると自動計算
+  - 発行日・支払期限・備考も設定可能
+  - ステータス管理（下書き/送付済み/入金済み）
+- **請求書表示・印刷**: ブラウザの印刷機能でPDF保存可能な体裁の請求書を表示（自社情報・振込先口座も印字）
+- **設定画面**: 自社情報（屋号・住所・連絡先）、振込先口座、デフォルト手数料/消費税率、請求書番号のプレフィックス、合言葉の変更
 
-## 画面構成 / URL(SPAのためハッシュルーティング)
-| 画面 | ハッシュ | 説明 |
-|---|---|---|
-| ホーム | `#/home` | 3つの大きなボタン(仕入れ取込/請求書作成/顧客管理)、最近の請求書 |
-| 顧客一覧 | `#/customers` | 顧客の追加・一覧 |
-| 顧客詳細 | `#/customer/:id` | 仕入れ履歴・請求書履歴・編集 |
-| 仕入れ取込 | `#/upload` または `#/upload/:customerId` | 画像アップロード→OCR結果確認・修正 |
-| 請求書作成 | `#/invoice-new` または `#/invoice-new/:customerId` | 項目選択・手数料/税率入力・プレビュー |
-| 請求書表示(印刷) | `#/invoice-view/:id` | 印刷用レイアウト、ステータス変更、削除 |
-| 設定 | `#/settings` | 自社情報・振込先・初期手数料/税率・合言葉変更 |
+## 画面構成（フロントエンド ルーティング）
 
-## API エンドポイント一覧
-- `GET/POST /api/auth/status|setup|login|logout|change-password`
-- `GET/PUT /api/settings`
+| パス | 内容 |
+|---|---|
+| `#/setup` | 初回合言葉設定 |
+| `#/login` | ログイン |
+| `#/` | ホーム（仕入れ取込・お客さん一覧への導線） |
+| `#/customers` | お客さん一覧 |
+| `#/customers/:id` | お客さん詳細（仕入れ・請求書履歴） |
+| `#/purchases/unassigned` | 未割当の仕入れ一覧 |
+| `#/purchase/capture` | 仕入れ画像の取り込み |
+| `#/purchase/:id` | 仕入れ詳細・明細編集 |
+| `#/invoice/new` | 請求書作成 |
+| `#/invoice/:id` | 請求書表示・印刷 |
+| `#/invoice/:id/edit` | 請求書編集 |
+| `#/settings` | 設定 |
+
+## API エンドポイント
+
+- `POST /api/auth/setup` `/login` `/logout` `/change-password`、`GET /api/auth/status`
 - `GET/POST/PUT/DELETE /api/customers`, `/api/customers/:id`
-- `GET/POST/PUT/DELETE /api/purchases`, `/api/purchases/:id`, `/api/purchases/:id/image`
-- `PUT/DELETE /api/purchases/items/:itemId`, `POST /api/purchases/:id/items`
-- `GET /api/invoices/available-items?customer_id=`
-- `GET/POST/PUT/DELETE /api/invoices`, `/api/invoices/:id`
+- `GET/POST/PUT/DELETE /api/purchases`, `/api/purchases/:id`
+  - `POST /api/purchases/upload` (multipart: image, customer_id) — OCR取込
+  - `GET /api/purchases/:id/image` — 画像取得
+  - `PUT /api/purchases/:id/items` — 明細更新
+  - `GET /api/purchases/items/available?customer_id=` — 未使用明細一覧
+- `GET/POST/PUT/DELETE /api/invoices`, `/api/invoices/:id`, `PUT /api/invoices/:id/status`
+- `GET/PUT /api/settings`
 
-## データ構造・保存先
-- **Cloudflare D1 (SQLite)**: `settings`(自社設定・合言葉)、`customers`(顧客)、
-  `purchases`(仕入れ書類メタ情報)、`purchase_items`(仕入れ明細)、
-  `invoices`(請求書)、`invoice_items`(請求書明細)
-- **Cloudflare R2**: 取り込んだ仕入れ書類の画像本体を保存(`purchases/xxxx`キー)
-- **OpenAI互換API (gpt-5)**: 画像から項目を自動抽出するOCR処理に使用
+## データアーキテクチャ
 
-## 金額計算ロジック
-1. 仕入れ原価ごとに手数料%を掛けて請求額を算出(項目単位)
-2. 手数料込み合計に対して消費税%を計算
-3. 合計 = 手数料込み小計 + 消費税
-
-例: 原価 39,000円、手数料20%、税10% の場合
-→ 46,800円(手数料込み) → 消費税4,680円 → **合計51,480円**
-
-## 使い方(ユーザーガイド)
-1. 初回アクセス時に「合言葉」を設定してログイン
-2. 「設定」画面で屋号・住所・振込先口座・初期手数料/税率を登録
-3. 「お客様管理」で新しい顧客(宛名)を追加
-4. 「仕入れ取込」で見積書・請求書・レシートを撮影 → AIが自動で内容を読み取り
-   → 内容を確認・修正して保存(顧客に紐付け可能)
-5. 「請求書を作る」で顧客を選び、使う仕入れ項目にチェック → 手数料%・税率%を確認
-   → 「請求書を作成する」
-6. 完成した請求書画面で印刷アイコンから印刷 or PDF保存
+- **D1 (SQLite)**: `settings`（自社情報1行）, `customers`, `purchases`, `purchase_items`, `invoices`, `invoice_items`
+- **R2**: 仕入れ書類の画像バイナリを保存（`purchases/{timestamp}-{random}.{ext}`）
+- **OpenAI API (gpt-5-mini, Vision)**: 画像から仕入れ情報をJSON抽出
 
 ## 技術スタック
-- **バックエンド**: Hono (Cloudflare Workers/Pages)
-- **フロントエンド**: バニラJS(SPA) + Tailwind CSS(CDN) + axios
-- **データベース**: Cloudflare D1 (SQLite)
-- **画像保存**: Cloudflare R2
-- **OCR/AI**: OpenAI互換API (gpt-5, Vision機能)
-- **認証**: Cookie + HMAC署名セッショントークン(Web Crypto API)
 
-## 未実装 / 今後の拡張候補
-- 請求書のCSV/Excelエクスポート
-- 複数の請求書をまとめた月次レポート
-- 顧客・仕入れ先の検索機能
-- 請求書番号のカスタムフォーマット強化
-- 消費税の軽減税率(8%)対応
-- オフライン対応(PWA化)
+- Hono (Cloudflare Workers/Pages)
+- フロントエンド: バニラJS + TailwindCSS(CDN) + FontAwesome + axios + dayjs（ビルド不要のシンプル構成）
+- Cloudflare D1（データベース）、R2（画像ストレージ）
+
+## 未実装・今後の課題
+
+- **本番デプロイ未実施**（Genspark管理Cloudflareアカウントでのデプロイをこれから実行予定）
+- OCR結果の精度検証（実際の手書き伝票・レシートでの読み取り精度は要確認、必要に応じてプロンプト調整）
+- 請求書のPDF自動ダウンロード機能（現在はブラウザ印刷機能でのPDF化のみ対応）
+- 複数の自社情報（屋号）切り替えなど拡張的な機能（あえて非搭載＝シンプルさ優先の設計方針）
+
+## ローカル開発
+
+```bash
+npm install
+npm run build
+pm2 start ecosystem.config.cjs
+curl http://localhost:3000
+```
+
+D1マイグレーション（ローカル）:
+```bash
+npx wrangler d1 execute shokunin-invoice-production --local --file=./migrations/0001_initial_schema.sql
+```
+
+.dev.vars に OPENAI_API_KEY / OPENAI_BASE_URL を設定してください（OCR機能に必要）。
 
 ## デプロイ状況
-- **ステータス**: ローカル開発環境で動作確認済み(D1/R2ローカルモード)
-- 本番デプロイには Cloudflare アカウントでの D1データベース・R2バケットの作成、
-  および `OPENAI_API_KEY` のシークレット設定が必要です
 
-## 環境変数
-- `OPENAI_API_KEY`: OpenAI互換APIキー(OCR処理に使用、`wrangler pages secret put`で設定)
-- `OPENAI_BASE_URL`: OpenAI互換APIのベースURL
-
-最終更新日: 2026-07-08
+- **プラットフォーム**: Cloudflare Pages（Genspark管理アカウント / gsk-hosted-deploy）
+- **ステータス**: ❌ 未デプロイ（ローカル動作確認済み、デプロイ作業待ち）
+- **最終更新**: 2026-07-08
