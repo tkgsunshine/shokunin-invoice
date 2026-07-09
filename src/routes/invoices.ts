@@ -7,6 +7,7 @@ type ItemInput = {
   purchase_item_id?: number | null
   name: string
   quantity: number
+  unit?: string
   unit_price: number
   cost_amount: number
 }
@@ -121,10 +122,10 @@ invoices.post('/', async (c) => {
   for (let i = 0; i < computed.length; i++) {
     const it = computed[i]
     await c.env.DB.prepare(
-      `INSERT INTO invoice_items (invoice_id, purchase_item_id, name, quantity, unit_price, cost_amount, billed_amount, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO invoice_items (invoice_id, purchase_item_id, name, quantity, unit, unit_price, cost_amount, billed_amount, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-      .bind(invoiceId, it.purchase_item_id ?? null, it.name, it.quantity, it.unit_price, it.cost_amount, it.billed_amount, i)
+      .bind(invoiceId, it.purchase_item_id ?? null, it.name, it.quantity, it.unit || '', it.unit_price, it.cost_amount, it.billed_amount, i)
       .run()
 
     if (it.purchase_item_id) {
@@ -198,10 +199,10 @@ invoices.put('/:id', async (c) => {
   for (let i = 0; i < computed.length; i++) {
     const it = computed[i]
     await c.env.DB.prepare(
-      `INSERT INTO invoice_items (invoice_id, purchase_item_id, name, quantity, unit_price, cost_amount, billed_amount, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO invoice_items (invoice_id, purchase_item_id, name, quantity, unit, unit_price, cost_amount, billed_amount, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-      .bind(id, it.purchase_item_id ?? null, it.name, it.quantity, it.unit_price, it.cost_amount, it.billed_amount, i)
+      .bind(id, it.purchase_item_id ?? null, it.name, it.quantity, it.unit || '', it.unit_price, it.cost_amount, it.billed_amount, i)
       .run()
 
     if (it.purchase_item_id) {

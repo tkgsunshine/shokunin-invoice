@@ -136,9 +136,9 @@ purchases.post('/upload', async (c) => {
   for (let i = 0; i < ocrResult.items.length; i++) {
     const it = ocrResult.items[i]
     await c.env.DB.prepare(
-      `INSERT INTO purchase_items (purchase_id, name, quantity, unit_price, amount, sort_order) VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO purchase_items (purchase_id, name, quantity, unit, unit_price, amount, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
-      .bind(purchaseId, it.name, it.quantity, it.unit_price, it.amount, i)
+      .bind(purchaseId, it.name, it.quantity, it.unit || '', it.unit_price, it.amount, i)
       .run()
   }
 
@@ -189,16 +189,16 @@ purchases.put('/:id', async (c) => {
 // 明細の更新
 purchases.put('/:id/items', async (c) => {
   const purchaseId = c.req.param('id')
-  const { items } = await c.req.json<{ items: { id?: number; name: string; quantity: number; unit_price: number; amount: number }[] }>()
+  const { items } = await c.req.json<{ items: { id?: number; name: string; quantity: number; unit?: string; unit_price: number; amount: number }[] }>()
 
   await c.env.DB.prepare('DELETE FROM purchase_items WHERE purchase_id = ?').bind(purchaseId).run()
 
   for (let i = 0; i < items.length; i++) {
     const it = items[i]
     await c.env.DB.prepare(
-      `INSERT INTO purchase_items (purchase_id, name, quantity, unit_price, amount, sort_order) VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO purchase_items (purchase_id, name, quantity, unit, unit_price, amount, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
-      .bind(purchaseId, it.name, it.quantity, it.unit_price, it.amount, i)
+      .bind(purchaseId, it.name, it.quantity, it.unit || '', it.unit_price, it.amount, i)
       .run()
   }
 

@@ -581,9 +581,9 @@
       <button id="p-delete-btn" class="w-full btn-danger rounded-lg py-3 font-bold big-tap"><i class="fas fa-trash mr-1"></i>この仕入れを削除</button>
     `;
 
-    let currentItems = items.map((i) => ({ id: i.id, name: i.name, quantity: i.quantity, unit_price: i.unit_price, amount: i.amount }));
+    let currentItems = items.map((i) => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit || '', unit_price: i.unit_price, amount: i.amount }));
     if (currentItems.length === 0) {
-      currentItems = [{ name: '', quantity: 1, unit_price: purchase.total_amount || 0, amount: purchase.total_amount || 0 }];
+      currentItems = [{ name: '', quantity: 1, unit: '', unit_price: purchase.total_amount || 0, amount: purchase.total_amount || 0 }];
     }
     renderItemsList();
 
@@ -592,9 +592,10 @@
       list.innerHTML = currentItems
         .map(
           (it, idx) => `
-        <div class="flex gap-2 mb-2 items-center" data-idx="${idx}">
-          <input class="item-name flex-1 border rounded-lg p-2 text-sm" placeholder="品目名" value="${esc(it.name)}" />
+        <div class="flex flex-wrap gap-2 mb-2 items-center border-b pb-2" data-idx="${idx}">
+          <input class="item-name flex-1 min-w-[120px] border rounded-lg p-2 text-sm" placeholder="品目名" value="${esc(it.name)}" />
           <input class="item-qty w-14 border rounded-lg p-2 text-sm" type="number" step="any" placeholder="数量" value="${it.quantity}" />
+          <input class="item-unit w-16 border rounded-lg p-2 text-sm" type="text" placeholder="単位" value="${esc(it.unit || '')}" />
           <input class="item-price w-24 border rounded-lg p-2 text-sm" type="number" step="any" placeholder="単価" value="${it.unit_price}" />
           <input class="item-amount w-24 border rounded-lg p-2 text-sm font-bold" type="number" step="any" placeholder="金額" value="${it.amount}" />
           <button class="item-del text-red-500 p-2"><i class="fas fa-times"></i></button>
@@ -609,6 +610,7 @@
           currentItems[idx].quantity = Number(e.target.value) || 0;
           recalcAmount(idx, row);
         };
+        row.querySelector('.item-unit').oninput = (e) => (currentItems[idx].unit = e.target.value);
         row.querySelector('.item-price').oninput = (e) => {
           currentItems[idx].unit_price = Number(e.target.value) || 0;
           recalcAmount(idx, row);
@@ -638,7 +640,7 @@
     }
 
     document.getElementById('item-add-btn').onclick = () => {
-      currentItems.push({ name: '', quantity: 1, unit_price: 0, amount: 0 });
+      currentItems.push({ name: '', quantity: 1, unit: '', unit_price: 0, amount: 0 });
       renderItemsList();
     };
 
@@ -695,6 +697,7 @@
         purchase_item_id: it.purchase_item_id,
         name: it.name,
         quantity: it.quantity,
+        unit: it.unit || '',
         unit_price: it.unit_price,
         cost_amount: it.cost_amount,
         checked: true,
@@ -772,6 +775,7 @@
                 purchase_item_id: it.id,
                 name: it.name,
                 quantity: it.quantity,
+                unit: it.unit || '',
                 unit_price: it.unit_price,
                 cost_amount: it.amount,
               }).replace(/'/g, "&apos;")}' />
@@ -801,8 +805,10 @@
         list.innerHTML = selectedItems
           .map(
             (it, idx) => `
-          <div class="flex gap-2 mb-2 items-center" data-idx="${idx}">
-            <input class="sel-name flex-1 border rounded-lg p-2 text-sm" placeholder="品目名" value="${esc(it.name)}" />
+          <div class="flex flex-wrap gap-2 mb-2 items-center" data-idx="${idx}">
+            <input class="sel-name flex-1 min-w-[120px] border rounded-lg p-2 text-sm" placeholder="品目名" value="${esc(it.name)}" />
+            <input class="sel-qty w-14 border rounded-lg p-2 text-sm" type="number" step="any" placeholder="数量" value="${it.quantity ?? 1}" />
+            <input class="sel-unit w-16 border rounded-lg p-2 text-sm" type="text" placeholder="単位" value="${esc(it.unit || '')}" />
             <input class="sel-cost w-24 border rounded-lg p-2 text-sm" type="number" step="any" placeholder="原価" value="${it.cost_amount}" />
             <button class="sel-del text-red-500 p-2"><i class="fas fa-times"></i></button>
           </div>`
@@ -812,6 +818,8 @@
         list.querySelectorAll('[data-idx]').forEach((row) => {
           const idx = Number(row.dataset.idx);
           row.querySelector('.sel-name').oninput = (e) => (selectedItems[idx].name = e.target.value);
+          row.querySelector('.sel-qty').oninput = (e) => (selectedItems[idx].quantity = Number(e.target.value) || 0);
+          row.querySelector('.sel-unit').oninput = (e) => (selectedItems[idx].unit = e.target.value);
           row.querySelector('.sel-cost').oninput = (e) => {
             selectedItems[idx].cost_amount = Number(e.target.value) || 0;
             updateSummary();
@@ -845,7 +853,7 @@
     }
 
     document.getElementById('add-manual-item').onclick = () => {
-      selectedItems.push({ purchase_item_id: null, name: '', quantity: 1, unit_price: 0, cost_amount: 0, checked: true });
+      selectedItems.push({ purchase_item_id: null, name: '', quantity: 1, unit: '', unit_price: 0, cost_amount: 0, checked: true });
       renderSelectedItems();
     };
 
@@ -872,6 +880,7 @@
           purchase_item_id: it.purchase_item_id || null,
           name: it.name,
           quantity: it.quantity || 1,
+          unit: it.unit || '',
           unit_price: it.unit_price || it.cost_amount || 0,
           cost_amount: Number(it.cost_amount) || 0,
         })),
@@ -950,7 +959,8 @@
           <thead>
             <tr class="border-b-2 border-gray-800">
               <th class="text-left py-2">品目</th>
-              <th class="text-right py-2 w-20">数量</th>
+              <th class="text-right py-2 w-16">数量</th>
+              <th class="text-center py-2 w-14">単位</th>
               <th class="text-right py-2 w-28">単価</th>
               <th class="text-right py-2 w-28">金額</th>
             </tr>
@@ -960,6 +970,7 @@
               <tr class="border-b">
                 <td class="py-2">${esc(it.name)}</td>
                 <td class="text-right py-2">${it.quantity}</td>
+                <td class="text-center py-2">${esc(it.unit || '')}</td>
                 <td class="text-right py-2">${yen(it.billed_amount / (it.quantity || 1))}</td>
                 <td class="text-right py-2">${yen(it.billed_amount)}</td>
               </tr>`).join('')}

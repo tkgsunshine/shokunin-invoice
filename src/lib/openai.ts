@@ -3,6 +3,7 @@
 export type OcrItem = {
   name: string
   quantity: number
+  unit: string
   unit_price: number
   amount: number
 }
@@ -25,11 +26,12 @@ const SYSTEM_PROMPT = `あなたは建築業の職人が受け取る仕入れ書
   "purchase_date": "YYYY-MM-DD形式の日付(不明なら空文字)",
   "total_amount": 合計金額の数値(カンマ・円記号を除いた数値のみ、不明なら0),
   "items": [
-    { "name": "品目名", "quantity": 数量(数値、不明なら1), "unit_price": 単価(数値、不明なら0), "amount": 金額(数値) }
+    { "name": "品目名", "quantity": 数量(数値、不明なら1), "unit": "単位(文字列。例: 式, m, m2, kg, 本, 枚, 個, 台, セット等。不明なら空文字)", "unit_price": 単価(数値、不明なら0), "amount": 金額(数値) }
   ]
 }
 
 注意点:
+- unitは書類に記載されている単位表記をそのまま使う(「1式」なら"式"、「10m」なら"m"など)。記載がなければ空文字にする
 - 数量・単価・金額は数値のみ(カンマ、円マーク、税込表記等は除去)
 - 明細が読み取れない場合はitemsを空配列にする代わりに、合計金額のみを1つの項目として推定してよい
 - 手書きや不鮮明な部分は無理に推測せず、読み取れる範囲で構わない
@@ -97,6 +99,7 @@ export async function extractPurchaseFromImage(
     ? parsed.items.map((it: any) => ({
         name: String(it.name ?? '').slice(0, 200),
         quantity: toNumber(it.quantity, 1),
+        unit: String(it.unit ?? '').slice(0, 20),
         unit_price: toNumber(it.unit_price, 0),
         amount: toNumber(it.amount, toNumber(it.quantity, 1) * toNumber(it.unit_price, 0)),
       }))
