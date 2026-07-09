@@ -10,22 +10,28 @@ type ItemInput = {
   unit?: string
   unit_price: number
   cost_amount: number
+  fee_percent?: number | null
 }
+
+const TAX_RATE = 10
 
 function round(n: number): number {
   return Math.round(n)
 }
 
-function calcInvoice(items: ItemInput[], feePercent: number, taxRate: number) {
+function calcInvoice(items: ItemInput[], defaultFeePercent: number) {
   const computed = items.map((it) => {
     const cost = it.cost_amount
+    const feePercent = it.fee_percent === null || it.fee_percent === undefined ? defaultFeePercent : it.fee_percent
     const billed = round(cost * (1 + feePercent / 100))
-    return { ...it, billed_amount: billed }
+    const profitAmount = billed - cost
+    const itemTax = round(billed * (TAX_RATE / 100))
+    return { ...it, fee_percent: feePercent, billed_amount: billed, profit_amount: profitAmount, tax_amount: itemTax }
   })
   const subtotalCost = round(computed.reduce((s, i) => s + i.cost_amount, 0))
   const amountBeforeTax = round(computed.reduce((s, i) => s + i.billed_amount, 0))
   const feeAmount = amountBeforeTax - subtotalCost
-  const taxAmount = round(amountBeforeTax * (taxRate / 100))
+  const taxAmount = round(computed.reduce((s, i) => s + i.tax_amount, 0))
   const totalAmount = amountBeforeTax + taxAmount
   return { computed, subtotalCost, feeAmount, amountBeforeTax, taxAmount, totalAmount }
 }
@@ -34,7 +40,7 @@ function calcInvoice(items: ItemInput[], feePercent: number, taxRate: number) {
 invoices.get('/', async (c) => {
   const customerId = c.req.query('customer_id')
   let query = `SELECT i.*, c.name as customer_name FROM invoices i JOIN customers c ON c.id = i.customer_id`
-  const binds: any[] = []
+  const binds: unknown[] = []
   if (customerId) {
     query += ' WHERE i.customer_id = ?'
     binds.push(customerId)
@@ -59,11 +65,25 @@ invoices.get('/:id', async (c) => {
     'SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY sort_order, id'
   )
     .bind(id)
-    .all()
+    .all<Record<string, unknown>>()
+
+  const itemsWithCalc = items.map((it) => {
+    const cost = Number(it.cost_amount) || 0
+    const billed = Number(it.billed_amount) || 0
+    const feePercent = it.fee_percent !== null && it.fee_percent !== undefined
+      ? it.fee_percent
+      : cost > 0 ? round(((billed - cost) / cost) * 10000) / 100 : 0
+    return {
+      ...it,
+      fee_percent: feePercent,
+      profit_amount: billed - cost,
+      tax_amount: round(billed * (TAX_RATE / 100)),
+    }
+  })
 
   const settings = await c.env.DB.prepare('SELECT * FROM settings WHERE id = 1').first()
 
-  return c.json({ invoice, items, settings })
+  return c.json({ invoice, items: itemsWithCalc, settings })
 })
 
 // 作成
@@ -73,7 +93,6 @@ invoices.post('/', async (c) => {
     issue_date: string
     due_date: string
     fee_percent: number
-    tax_rate: number
     memo?: string
     items: ItemInput[]
   }>()
@@ -82,18 +101,16 @@ invoices.post('/', async (c) => {
     return c.json({ error: '顧客と明細は必須です' }, 400)
   }
 
-  const settings = await c.env.DB.prepare('SELECT invoice_prefix, next_invoice_seq FROM settings WHERE id = 1').first<{
-    invoice_prefix: string
-    next_invoice_seq: number
-  }>()
+  const settings = await c.env.DB.prepare(
+    'SELECT invoice_prefix, next_invoice_seq FROM settings WHERE id = 1'
+  ).first<{ invoice_prefix: string; next_invoice_seq: number }>()
 
   const seq = settings?.next_invoice_seq ?? 1
   const invoiceNumber = `${settings?.invoice_prefix ?? 'INV-'}${String(seq).padStart(4, '0')}`
 
   const { computed, subtotalCost, feeAmount, amountBeforeTax, taxAmount, totalAmount } = calcInvoice(
     body.items,
-    body.fee_percent,
-    body.tax_rate
+    body.fee_percent
   )
 
   const result = await c.env.DB.prepare(
@@ -107,7 +124,7 @@ invoices.post('/', async (c) => {
       body.issue_date ?? '',
       body.due_date ?? '',
       body.fee_percent,
-      body.tax_rate,
+      TAX_RATE,
       subtotalCost,
       feeAmount,
       amountBeforeTax,
@@ -122,10 +139,10 @@ invoices.post('/', async (c) => {
   for (let i = 0; i < computed.length; i++) {
     const it = computed[i]
     await c.env.DB.prepare(
-      `INSERT INTO invoice_items (invoice_id, purchase_item_id, name, quantity, unit, unit_price, cost_amount, billed_amount, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO invoice_items (invoice_id, purchase_item_id, name, quantity, unit, unit_price, cost_amount, billed_amount, fee_percent, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-      .bind(invoiceId, it.purchase_item_id ?? null, it.name, it.quantity, it.unit || '', it.unit_price, it.cost_amount, it.billed_amount, i)
+      .bind(invoiceId, it.purchase_item_id ?? null, it.name, it.quantity, it.unit || '', it.unit_price, it.cost_amount, it.billed_amount, it.fee_percent, i)
       .run()
 
     if (it.purchase_item_id) {
@@ -150,15 +167,13 @@ invoices.put('/:id', async (c) => {
     issue_date: string
     due_date: string
     fee_percent: number
-    tax_rate: number
     memo?: string
     items: ItemInput[]
   }>()
 
   const { computed, subtotalCost, feeAmount, amountBeforeTax, taxAmount, totalAmount } = calcInvoice(
     body.items,
-    body.fee_percent,
-    body.tax_rate
+    body.fee_percent
   )
 
   // 既存の紐づけ解除
@@ -167,6 +182,7 @@ invoices.put('/:id', async (c) => {
   )
     .bind(id)
     .all<{ purchase_item_id: number }>()
+
   for (const oi of oldItems) {
     await c.env.DB.prepare('UPDATE purchase_items SET used_in_invoice_id = NULL WHERE id = ?')
       .bind(oi.purchase_item_id)
@@ -185,7 +201,7 @@ invoices.put('/:id', async (c) => {
       body.issue_date ?? '',
       body.due_date ?? '',
       body.fee_percent,
-      body.tax_rate,
+      TAX_RATE,
       subtotalCost,
       feeAmount,
       amountBeforeTax,
@@ -199,10 +215,10 @@ invoices.put('/:id', async (c) => {
   for (let i = 0; i < computed.length; i++) {
     const it = computed[i]
     await c.env.DB.prepare(
-      `INSERT INTO invoice_items (invoice_id, purchase_item_id, name, quantity, unit, unit_price, cost_amount, billed_amount, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO invoice_items (invoice_id, purchase_item_id, name, quantity, unit, unit_price, cost_amount, billed_amount, fee_percent, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-      .bind(id, it.purchase_item_id ?? null, it.name, it.quantity, it.unit || '', it.unit_price, it.cost_amount, it.billed_amount, i)
+      .bind(id, it.purchase_item_id ?? null, it.name, it.quantity, it.unit || '', it.unit_price, it.cost_amount, it.billed_amount, it.fee_percent, i)
       .run()
 
     if (it.purchase_item_id) {
@@ -215,7 +231,7 @@ invoices.put('/:id', async (c) => {
   return c.json({ success: true, total_amount: totalAmount })
 })
 
-// ステータス更新（送付済み等）
+// ステータス更新
 invoices.put('/:id/status', async (c) => {
   const id = c.req.param('id')
   const { status } = await c.req.json<{ status: string }>()
@@ -231,6 +247,7 @@ invoices.delete('/:id', async (c) => {
   )
     .bind(id)
     .all<{ purchase_item_id: number }>()
+
   for (const oi of oldItems) {
     await c.env.DB.prepare('UPDATE purchase_items SET used_in_invoice_id = NULL WHERE id = ?')
       .bind(oi.purchase_item_id)

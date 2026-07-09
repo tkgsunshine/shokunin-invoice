@@ -6,10 +6,8 @@ import { verifySessionToken } from './crypto'
 export const SESSION_COOKIE = 'shokunin_session'
 
 export async function authMiddleware(c: Context<{ Bindings: Bindings }>, next: Next) {
-  const settings = await c.env.DB.prepare('SELECT session_secret, password_hash FROM settings WHERE id = 1').first<{
-    session_secret: string | null
-    password_hash: string | null
-  }>()
+  const result = await c.env.DB.execute('SELECT session_secret, password_hash FROM settings WHERE id = 1')
+  const settings = result.rows[0] as { session_secret: string | null; password_hash: string | null } | undefined
 
   // パスワード未設定の場合は初回セットアップ扱いで認証をスキップ
   if (!settings?.password_hash) {
@@ -27,7 +25,7 @@ export async function authMiddleware(c: Context<{ Bindings: Bindings }>, next: N
 export function setSessionCookie(c: Context, token: string) {
   setCookie(c, SESSION_COOKIE, token, {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'Strict',
     path: '/',
     maxAge: 60 * 60 * 24 * 30,

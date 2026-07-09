@@ -9,16 +9,16 @@ const auth = new Hono<{ Bindings: Bindings }>()
 
 // 現在のログイン状態・初期セットアップ有無を確認
 auth.get('/status', async (c) => {
-  const settings = await c.env.DB.prepare(
+  const result = await c.env.DB.prepare(
     'SELECT password_hash, session_secret FROM settings WHERE id = 1'
   ).first<{ password_hash: string | null; session_secret: string | null }>()
 
-  const needsSetup = !settings?.password_hash
+  const needsSetup = !result?.password_hash
   let loggedIn = needsSetup // 未設定なら常にアクセス可能
 
   if (!needsSetup) {
     const token = getCookie(c, SESSION_COOKIE)
-    loggedIn = settings!.session_secret ? await verifySessionToken(settings!.session_secret, token) : false
+    loggedIn = result!.session_secret ? await verifySessionToken(result!.session_secret, token) : false
   }
 
   return c.json({ needsSetup, loggedIn })
@@ -31,9 +31,10 @@ auth.post('/setup', async (c) => {
     return c.json({ error: '合言葉は4文字以上で設定してください' }, 400)
   }
 
-  const existing = await c.env.DB.prepare('SELECT password_hash FROM settings WHERE id = 1').first<{
-    password_hash: string | null
-  }>()
+  const existing = await c.env.DB.prepare(
+    'SELECT password_hash FROM settings WHERE id = 1'
+  ).first<{ password_hash: string | null }>()
+
   if (existing?.password_hash) {
     return c.json({ error: '既に合言葉が設定されています' }, 400)
   }
@@ -87,7 +88,7 @@ auth.post('/logout', async (c) => {
   return c.json({ success: true })
 })
 
-// 合言葉の変更（ログイン済みが前提、index.tsx側でauthMiddleware適用）
+// 合言葉の変更（ログイン済みが前提）
 auth.post('/change-password', async (c) => {
   const { currentPassword, newPassword } = await c.req.json<{ currentPassword: string; newPassword: string }>()
   if (!newPassword || newPassword.length < 4) {

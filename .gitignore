@@ -1,6 +1,12 @@
 # prod
 dist/
 
+# local dev storage
+.local-storage/
+local.db
+local.db-shm
+local.db-wal
+
 # dev
 .yarn/
 !.yarn/releases

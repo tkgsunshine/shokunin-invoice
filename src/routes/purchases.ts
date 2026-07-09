@@ -12,7 +12,7 @@ purchases.get('/', async (c) => {
 
   let query = `SELECT p.*, cu.name as customer_name FROM purchases p LEFT JOIN customers cu ON cu.id = p.customer_id`
   const conditions: string[] = []
-  const binds: any[] = []
+  const binds: unknown[] = []
 
   if (customerId) {
     conditions.push('p.customer_id = ?')
@@ -24,9 +24,7 @@ purchases.get('/', async (c) => {
   if (conditions.length) query += ' WHERE ' + conditions.join(' AND ')
   query += ' ORDER BY p.created_at DESC'
 
-  const { results } = await c.env.DB.prepare(query)
-    .bind(...binds)
-    .all()
+  const { results } = await c.env.DB.prepare(query).bind(...binds).all()
   return c.json(results)
 })
 
@@ -74,7 +72,6 @@ purchases.post('/upload', async (c) => {
   }
 
   let contentType = file.type || 'image/jpeg'
-  // ブラウザ/OS依存でPDFのMIMEタイプが空・不正になるケースをファイル名から補正
   if ((!contentType || contentType === 'application/octet-stream') && /\.pdf$/i.test(file.name || '')) {
     contentType = 'application/pdf'
   }
@@ -85,7 +82,7 @@ purchases.post('/upload', async (c) => {
 
   const arrayBuffer = await file.arrayBuffer()
 
-  // R2に保存
+  // ストレージに保存
   const extMap: Record<string, string> = {
     'image/jpeg': 'jpg',
     'image/png': 'png',
@@ -103,9 +100,9 @@ purchases.post('/upload', async (c) => {
   let ocrError: string | null = null
   try {
     ocrResult = await extractPurchaseFromImage(c.env.OPENAI_API_KEY, c.env.OPENAI_BASE_URL, base64, contentType, file.name)
-  } catch (e: any) {
-    // OCR失敗しても画像/PDFは保存し、空データで返す
-    ocrError = e?.message ? String(e.message).slice(0, 500) : 'OCR処理でエラーが発生しました'
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    ocrError = err?.message ? String(err.message).slice(0, 500) : 'OCR処理でエラーが発生しました'
     ocrResult = {
       vendor_name: '',
       document_type: '',
@@ -172,7 +169,7 @@ purchases.get('/:id/image', async (c) => {
   })
 })
 
-// 仕入れ情報の更新（顧客割当、業者名、明細の手動修正など）
+// 仕入れ情報の更新
 purchases.put('/:id', async (c) => {
   const id = c.req.param('id')
   const { customer_id, vendor_name, document_type, purchase_date, total_amount, memo } = await c.req.json()
@@ -233,7 +230,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
     const chunk = bytes.subarray(i, i + chunkSize)
     binary += String.fromCharCode(...chunk)
   }
-  return btoa(binary)
+  return Buffer.from(binary, 'binary').toString('base64')
 }
 
 export default purchases

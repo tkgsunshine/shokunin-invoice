@@ -168,13 +168,22 @@
 
   function renderNav(currentHash) {
     let nav = document.getElementById('top-nav');
+    // TOPの3つの主要メニュー（仕入れを取り込む / お客さん一覧 / 設定）を常にヘッダーに表示
+    const navItems = [
+      { href: '#/purchase/capture', icon: 'fa-camera', label: '仕入れ取込', match: /^\/purchase\/capture/ },
+      { href: '#/customers', icon: 'fa-users', label: 'お客さん', match: /^\/customers/ },
+      { href: '#/settings', icon: 'fa-cog', label: '設定', match: /^\/settings/ },
+    ];
     const navHtml = `
       <header id="top-nav" class="no-print bg-white border-b sticky top-0 z-40 shadow-sm">
-        <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-          <a href="#/" class="text-lg font-bold text-blue-600"><i class="fas fa-file-invoice mr-2"></i>かんたん請求書</a>
-          <div class="flex gap-3 text-gray-500">
-            <a href="#/customers" class="p-2 hover:text-blue-600" title="お客さん"><i class="fas fa-users text-xl"></i></a>
-            <a href="#/settings" class="p-2 hover:text-blue-600" title="設定"><i class="fas fa-cog text-xl"></i></a>
+        <div class="max-w-3xl mx-auto px-4 py-2 flex items-center justify-between">
+          <a href="#/" class="text-base font-bold text-blue-600 shrink-0"><i class="fas fa-file-invoice mr-1"></i>かんたん請求書</a>
+          <div class="flex gap-1">
+            ${navItems.map((n) => `
+              <a href="${n.href}" class="flex flex-col items-center justify-center px-3 py-1 rounded-lg text-xs ${n.match.test('/' + currentHash.replace(/^\//, '').split('?')[0]) ? 'text-blue-600 bg-blue-50 font-bold' : 'text-gray-500 hover:text-blue-600'}" title="${n.label}">
+                <i class="fas ${n.icon} text-lg"></i>
+                <span class="mt-0.5">${n.label}</span>
+              </a>`).join('')}
           </div>
         </div>
       </header>`;
@@ -578,6 +587,10 @@
         <button id="items-save-btn" class="w-full btn-primary rounded-lg py-3 font-bold mt-3 big-tap">明細を保存</button>
       </div>
 
+      <button id="p-to-invoice-btn" class="w-full rounded-lg py-3 font-bold mb-3 big-tap text-white" style="background:#059669">
+        <i class="fas fa-file-invoice mr-1"></i>この仕入れから請求書を作成する
+      </button>
+
       <button id="p-delete-btn" class="w-full btn-danger rounded-lg py-3 font-bold big-tap"><i class="fas fa-trash mr-1"></i>この仕入れを削除</button>
     `;
 
@@ -667,6 +680,27 @@
       showToast('削除しました');
       location.hash = '#/';
     };
+
+    // 仕入れ読み込み → 請求書作成画面 へのフロー
+    document.getElementById('p-to-invoice-btn').onclick = async () => {
+      let customerId = document.getElementById('p-customer').value;
+      if (!customerId) {
+        showToast('先にお客さんを選択・保存してください', true);
+        document.getElementById('p-customer').focus();
+        return;
+      }
+      // 明細・お客さんが未保存の場合に備えて先に保存してから遷移
+      await api('put', `/api/purchases/${purchase.id}`, {
+        customer_id: customerId,
+        vendor_name: document.getElementById('p-vendor').value,
+        document_type: document.getElementById('p-doctype').value,
+        purchase_date: document.getElementById('p-date').value,
+        total_amount: purchase.total_amount,
+        memo: '',
+      });
+      await api('put', `/api/purchases/${purchase.id}/items`, { items: currentItems });
+      location.hash = `#/invoice/new?customer_id=${customerId}`;
+    };
   });
 
   // ==================================================
@@ -680,6 +714,8 @@
     const { invoice } = await api('get', `/api/invoices/${params.id}`);
     await renderInvoiceForm(invoice, invoice.customer_id);
   });
+
+  const INVOICE_TAX_RATE = 10; // 消費税は一律10%固定
 
   async function renderInvoiceForm(existingInvoice, presetCustomerId) {
     const el = contentContainer();
@@ -700,9 +736,12 @@
         unit: it.unit || '',
         unit_price: it.unit_price,
         cost_amount: it.cost_amount,
+        fee_percent: it.fee_percent === null || it.fee_percent === undefined ? null : Number(it.fee_percent),
         checked: true,
       }));
     }
+
+    const defaultFeePercent = Number(existingInvoice?.fee_percent ?? settings.default_fee_percent) || 0;
 
     el.innerHTML = `
       <h2 class="text-xl font-bold mb-4"><i class="fas fa-file-invoice mr-2 text-green-600"></i>${isEdit ? '請求書を編集' : '請求書を作成'}</h2>
@@ -725,12 +764,12 @@
         </div>
         <div class="grid grid-cols-2 gap-3 mb-3">
           <div>
-            <label class="text-sm text-gray-500">手数料 (%)</label>
-            <input id="inv-fee" type="number" step="any" class="w-full border rounded-lg p-3 big-tap" value="${existingInvoice?.fee_percent ?? settings.default_fee_percent}" />
+            <label class="text-sm text-gray-500">基本利益率 (%)<span class="text-gray-400">（項目ごとに上書き可）</span></label>
+            <input id="inv-fee" type="number" step="any" class="w-full border rounded-lg p-3 big-tap" value="${defaultFeePercent}" />
           </div>
           <div>
-            <label class="text-sm text-gray-500">消費税 (%)</label>
-            <input id="inv-tax" type="number" step="any" class="w-full border rounded-lg p-3 big-tap" value="${existingInvoice?.tax_rate ?? settings.default_tax_rate}" />
+            <label class="text-sm text-gray-500">消費税</label>
+            <div class="w-full border rounded-lg p-3 bg-gray-100 text-gray-600 font-bold">一律 10%</div>
           </div>
         </div>
         <label class="text-sm text-gray-500">備考</label>
@@ -744,6 +783,11 @@
         <div id="available-items-area" class="mb-4"></div>
         <button id="add-manual-item" class="text-blue-600 text-sm mb-3"><i class="fas fa-plus mr-1"></i>手動で明細を追加</button>
         <div id="selected-items-list"></div>
+      </div>
+
+      <div class="card p-4 mb-4">
+        <h3 class="font-bold mb-2 text-sm text-gray-600"><i class="fas fa-chart-line mr-1"></i>項目ごとの原価・利益（参考表示）</h3>
+        <div id="profit-breakdown" class="space-y-2"></div>
       </div>
 
       <div class="card p-4 mb-4" id="calc-summary"></div>
@@ -788,13 +832,24 @@
         chk.onchange = (e) => {
           const data = JSON.parse(e.target.dataset.item);
           if (e.target.checked) {
-            selectedItems.push({ ...data, checked: true });
+            selectedItems.push({ ...data, fee_percent: null, checked: true });
           } else {
             selectedItems = selectedItems.filter((si) => si.purchase_item_id !== data.purchase_item_id);
           }
           renderSelectedItems();
         };
       });
+    }
+
+    // 項目ごとの利益率（未設定なら基本利益率を使用）から金額・利益額・消費税額を算出
+    function calcItemDisplay(it) {
+      const baseFee = Number(document.getElementById('inv-fee').value) || 0;
+      const feePercent = it.fee_percent === null || it.fee_percent === undefined || it.fee_percent === '' ? baseFee : Number(it.fee_percent);
+      const cost = Number(it.cost_amount) || 0;
+      const billed = Math.round(cost * (1 + feePercent / 100));
+      const profit = billed - cost;
+      const itemTax = Math.round(billed * (INVOICE_TAX_RATE / 100));
+      return { feePercent, cost, billed, profit, itemTax };
     }
 
     function renderSelectedItems() {
@@ -834,31 +889,88 @@
       updateSummary();
     }
 
+    // 表外：項目ごとの仕入原価・利益率(%)・利益額を分かりやすく表示。利益率は項目ごとに変更可能
+    function renderProfitBreakdown() {
+      const breakdownEl = document.getElementById('profit-breakdown');
+      const baseFee = Number(document.getElementById('inv-fee').value) || 0;
+      if (selectedItems.length === 0) {
+        breakdownEl.innerHTML = '<div class="text-gray-400 text-sm py-2">明細がありません</div>';
+        return;
+      }
+      breakdownEl.innerHTML = selectedItems
+        .map((it, idx) => {
+          const { feePercent, cost, billed, profit, itemTax } = calcItemDisplay(it);
+          return `
+          <div class="border rounded-lg p-3 bg-gray-50" data-pidx="${idx}">
+            <div class="text-sm font-bold mb-2 truncate">${esc(it.name || '(品目名未入力)')}</div>
+            <div class="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-2">
+              <div>仕入原価: <span class="font-bold text-gray-800">${yen(cost)}</span></div>
+              <div>請求額(税抜): <span class="font-bold text-gray-800">${yen(billed)}</span></div>
+              <div>利益額: <span class="font-bold text-green-600">${yen(profit)}</span></div>
+              <div>消費税(10%): <span class="font-bold text-gray-800">${yen(itemTax)}</span></div>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-gray-500 shrink-0">利益率</label>
+              <input class="pb-fee w-20 border rounded-lg p-1 text-sm text-right" type="number" step="any" value="${feePercent}" />
+              <span class="text-xs text-gray-500">%</span>
+              ${it.fee_percent === null || it.fee_percent === undefined || it.fee_percent === '' ? '<span class="text-xs text-gray-400">(基本利益率を使用中)</span>' : '<button class="pb-reset text-xs text-blue-500 underline">基本利益率に戻す</button>'}
+            </div>
+          </div>`;
+        })
+        .join('');
+
+      breakdownEl.querySelectorAll('[data-pidx]').forEach((box) => {
+        const idx = Number(box.dataset.pidx);
+        const feeInput = box.querySelector('.pb-fee');
+        feeInput.oninput = (e) => {
+          const v = e.target.value;
+          selectedItems[idx].fee_percent = v === '' ? null : Number(v);
+          renderProfitBreakdown();
+          updateSummary();
+        };
+        const resetBtn = box.querySelector('.pb-reset');
+        if (resetBtn) {
+          resetBtn.onclick = () => {
+            selectedItems[idx].fee_percent = null;
+            renderProfitBreakdown();
+            updateSummary();
+          };
+        }
+      });
+    }
+
     function updateSummary() {
-      const feePercent = Number(document.getElementById('inv-fee').value) || 0;
-      const taxRate = Number(document.getElementById('inv-tax').value) || 0;
-      const subtotalCost = selectedItems.reduce((s, i) => s + (Number(i.cost_amount) || 0), 0);
-      const amountBeforeTax = selectedItems.reduce((s, i) => s + Math.round((Number(i.cost_amount) || 0) * (1 + feePercent / 100)), 0);
+      renderProfitBreakdown();
+      let subtotalCost = 0;
+      let amountBeforeTax = 0;
+      let taxAmount = 0;
+      selectedItems.forEach((it) => {
+        const { cost, billed, itemTax } = calcItemDisplay(it);
+        subtotalCost += cost;
+        amountBeforeTax += billed;
+        taxAmount += itemTax;
+      });
+      subtotalCost = Math.round(subtotalCost);
+      amountBeforeTax = Math.round(amountBeforeTax);
+      taxAmount = Math.round(taxAmount);
       const feeAmount = amountBeforeTax - subtotalCost;
-      const taxAmount = Math.round(amountBeforeTax * (taxRate / 100));
       const total = amountBeforeTax + taxAmount;
 
       document.getElementById('calc-summary').innerHTML = `
         <div class="flex justify-between text-sm mb-1"><span>仕入原価合計</span><span>${yen(subtotalCost)}</span></div>
-        <div class="flex justify-between text-sm mb-1"><span>手数料 (${feePercent}%)</span><span>${yen(feeAmount)}</span></div>
-        <div class="flex justify-between text-sm mb-1 border-b pb-2"><span>小計</span><span>${yen(amountBeforeTax)}</span></div>
-        <div class="flex justify-between text-sm mb-1"><span>消費税 (${taxRate}%)</span><span>${yen(taxAmount)}</span></div>
-        <div class="flex justify-between font-bold text-xl mt-2"><span>合計金額</span><span class="text-green-600">${yen(total)}</span></div>
+        <div class="flex justify-between text-sm mb-1"><span>利益額合計</span><span class="text-green-600 font-bold">${yen(feeAmount)}</span></div>
+        <div class="flex justify-between text-sm mb-1 border-b pb-2"><span>小計（税抜）</span><span>${yen(amountBeforeTax)}</span></div>
+        <div class="flex justify-between text-sm mb-1"><span>消費税合計 (10%)</span><span>${yen(taxAmount)}</span></div>
+        <div class="flex justify-between font-bold text-xl mt-2"><span>合計金額（税込）</span><span class="text-green-600">${yen(total)}</span></div>
       `;
     }
 
     document.getElementById('add-manual-item').onclick = () => {
-      selectedItems.push({ purchase_item_id: null, name: '', quantity: 1, unit: '', unit_price: 0, cost_amount: 0, checked: true });
+      selectedItems.push({ purchase_item_id: null, name: '', quantity: 1, unit: '', unit_price: 0, cost_amount: 0, fee_percent: null, checked: true });
       renderSelectedItems();
     };
 
     document.getElementById('inv-fee').oninput = updateSummary;
-    document.getElementById('inv-tax').oninput = updateSummary;
     document.getElementById('inv-customer').onchange = (e) => loadAvailableItems(e.target.value);
 
     renderSelectedItems();
@@ -874,7 +986,6 @@
         issue_date: document.getElementById('inv-issue-date').value,
         due_date: document.getElementById('inv-due-date').value,
         fee_percent: Number(document.getElementById('inv-fee').value) || 0,
-        tax_rate: Number(document.getElementById('inv-tax').value) || 0,
         memo: document.getElementById('inv-memo').value,
         items: selectedItems.map((it) => ({
           purchase_item_id: it.purchase_item_id || null,
@@ -883,6 +994,7 @@
           unit: it.unit || '',
           unit_price: it.unit_price || it.cost_amount || 0,
           cost_amount: Number(it.cost_amount) || 0,
+          fee_percent: it.fee_percent === null || it.fee_percent === undefined || it.fee_percent === '' ? null : Number(it.fee_percent),
         })),
       };
 
@@ -962,7 +1074,8 @@
               <th class="text-right py-2 w-16">数量</th>
               <th class="text-center py-2 w-14">単位</th>
               <th class="text-right py-2 w-28">単価</th>
-              <th class="text-right py-2 w-28">金額</th>
+              <th class="text-right py-2 w-24">金額(税抜)</th>
+              <th class="text-right py-2 w-24">消費税</th>
             </tr>
           </thead>
           <tbody>
@@ -973,15 +1086,16 @@
                 <td class="text-center py-2">${esc(it.unit || '')}</td>
                 <td class="text-right py-2">${yen(it.billed_amount / (it.quantity || 1))}</td>
                 <td class="text-right py-2">${yen(it.billed_amount)}</td>
+                <td class="text-right py-2">${yen(it.tax_amount)}</td>
               </tr>`).join('')}
           </tbody>
         </table>
 
         <div class="flex justify-end mb-8">
           <div class="w-64 text-sm">
-            <div class="flex justify-between py-1"><span>小計</span><span>${yen(invoice.amount_before_tax)}</span></div>
-            <div class="flex justify-between py-1 border-b"><span>消費税 (${invoice.tax_rate}%)</span><span>${yen(invoice.tax_amount)}</span></div>
-            <div class="flex justify-between py-2 font-bold text-lg"><span>合計</span><span>${yen(invoice.total_amount)}</span></div>
+            <div class="flex justify-between py-1"><span>小計（税抜）</span><span>${yen(invoice.amount_before_tax)}</span></div>
+            <div class="flex justify-between py-1 border-b"><span>消費税 (10%)</span><span>${yen(invoice.tax_amount)}</span></div>
+            <div class="flex justify-between py-2 font-bold text-lg"><span>合計（税込）</span><span>${yen(invoice.total_amount)}</span></div>
           </div>
         </div>
 
@@ -993,6 +1107,40 @@
         </div>` : ''}
 
         ${invoice.memo ? `<div class="text-sm border-t pt-4"><div class="font-bold mb-1">備考</div><div>${esc(invoice.memo)}</div></div>` : ''}
+      </div>
+
+      <div class="card p-4 mt-4 no-print">
+        <h3 class="font-bold mb-3 text-sm text-gray-600"><i class="fas fa-chart-line mr-1"></i>項目ごとの原価・利益（社内参考・請求書には印字されません）</h3>
+        <table class="w-full text-xs border-collapse">
+          <thead>
+            <tr class="border-b text-gray-500">
+              <th class="text-left py-1">品目</th>
+              <th class="text-right py-1">仕入原価</th>
+              <th class="text-right py-1">利益率</th>
+              <th class="text-right py-1">利益額</th>
+              <th class="text-right py-1">消費税</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map((it) => `
+              <tr class="border-b">
+                <td class="py-1">${esc(it.name)}</td>
+                <td class="text-right py-1">${yen(it.cost_amount)}</td>
+                <td class="text-right py-1">${Number(it.fee_percent).toFixed(1)}%</td>
+                <td class="text-right py-1 text-green-600 font-bold">${yen(it.profit_amount)}</td>
+                <td class="text-right py-1">${yen(it.tax_amount)}</td>
+              </tr>`).join('')}
+          </tbody>
+          <tfoot>
+            <tr class="font-bold border-t-2">
+              <td class="py-1">合計</td>
+              <td class="text-right py-1">${yen(invoice.subtotal_cost)}</td>
+              <td class="text-right py-1"></td>
+              <td class="text-right py-1 text-green-600">${yen(invoice.fee_amount)}</td>
+              <td class="text-right py-1">${yen(invoice.tax_amount)}</td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
     `;
 
