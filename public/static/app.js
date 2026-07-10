@@ -294,20 +294,33 @@
       <div class="space-y-3">
         ${customers.length === 0 ? '<div class="text-center text-gray-400 py-12">まだお客さんが登録されていません</div>' : ''}
         ${customers.map((c) => `
-          <a href="#/customers/${c.id}" class="card p-4 flex justify-between items-center hover:shadow-md">
-            <div>
-              <div class="font-bold text-lg">${esc(c.name)}</div>
-              <div class="text-sm text-gray-500">${esc(c.address || '')}</div>
-            </div>
-            <div class="text-right text-sm text-gray-400">
-              <div>請求書 ${c.invoice_count}件</div>
-              <div>仕入れ ${c.purchase_count}件</div>
-            </div>
-          </a>`).join('')}
+          <div class="card p-4 flex justify-between items-center hover:shadow-md">
+            <a href="#/customers/${c.id}" class="flex-1 flex justify-between items-center">
+              <div>
+                <div class="font-bold text-lg">${esc(c.name)}</div>
+                <div class="text-sm text-gray-500">${esc(c.address || '')}</div>
+              </div>
+              <div class="text-right text-sm text-gray-400 mr-3">
+                <div>請求書 ${c.invoice_count}件</div>
+                <div>仕入れ ${c.purchase_count}件</div>
+              </div>
+            </a>
+            <button class="del-customer-btn text-red-400 hover:text-red-600 p-2" data-id="${c.id}" data-name="${esc(c.name)}"><i class="fas fa-trash"></i></button>
+          </div>`).join('')}
       </div>
       <div id="customer-modal-root"></div>`;
 
     document.getElementById('add-customer-btn').onclick = () => openCustomerModal();
+    document.querySelectorAll('.del-customer-btn').forEach((btn) => {
+      btn.onclick = async (e) => {
+        e.preventDefault();
+        const name = btn.dataset.name;
+        if (!confirm(`「${name}」を削除しますか？\n関連する請求書・仕入れは削除されません。`)) return;
+        await api('delete', `/api/customers/${btn.dataset.id}`);
+        showToast('削除しました');
+        render();
+      };
+    });
   });
 
   function openCustomerModal(customer) {
@@ -375,7 +388,10 @@
             <div class="text-sm text-gray-500 mt-1">${esc(customer.address || '')}</div>
             <div class="text-sm text-gray-500">${esc(customer.phone || '')}</div>
           </div>
-          <button id="edit-cust-btn" class="btn-secondary rounded-lg px-3 py-2 text-sm"><i class="fas fa-pen"></i></button>
+          <div class="flex gap-2">
+            <button id="edit-cust-btn" class="btn-secondary rounded-lg px-3 py-2 text-sm"><i class="fas fa-pen"></i></button>
+            <button id="del-cust-btn" class="btn-danger rounded-lg px-3 py-2 text-sm"><i class="fas fa-trash"></i></button>
+          </div>
         </div>
       </div>
 
@@ -415,6 +431,12 @@
       <div id="customer-modal-root"></div>`;
 
     document.getElementById('edit-cust-btn').onclick = () => openCustomerModal(customer);
+    document.getElementById('del-cust-btn').onclick = async () => {
+      if (!confirm(`「${customer.name}」を削除しますか？\n関連する請求書・仕入れは削除されません。`)) return;
+      await api('delete', `/api/customers/${customer.id}`);
+      showToast('削除しました');
+      location.hash = '#/customers';
+    };
   });
 
   function statusLabel(status) {
@@ -448,6 +470,7 @@
               <option value="">お客さんを選択...</option>
               ${customers.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}
             </select>
+            <button class="del-purchase-btn w-full mt-2 text-red-400 hover:text-red-600 text-sm py-1" data-id="${p.id}"><i class="fas fa-trash mr-1"></i>削除</button>
           </div>`).join('')}
         ${purchases.length === 0 ? '<div class="text-center text-gray-400 py-12">未割当の仕入れはありません</div>' : ''}
       </div>`;
@@ -459,6 +482,14 @@
         if (!customerId) return;
         await api('put', `/api/purchases/${id}`, { customer_id: customerId });
         showToast('割り当てました');
+        render();
+      };
+    });
+    document.querySelectorAll('.del-purchase-btn').forEach((btn) => {
+      btn.onclick = async () => {
+        if (!confirm('この仕入れを削除しますか？')) return;
+        await api('delete', `/api/purchases/${btn.dataset.id}`);
+        showToast('削除しました');
         render();
       };
     });
@@ -527,32 +558,55 @@
       formData.append('image', file);
       if (customerId) formData.append('customer_id', customerId);
 
+      // プログレス更新ヘルパー
+      function setProgress(pct, statusText) {
+        const fill = document.getElementById('progress-fill');
+        const label = document.getElementById('progress-pct');
+        const status = document.getElementById('upload-status');
+        if (fill) fill.style.width = pct + '%';
+        if (label) label.textContent = Math.round(pct) + '%';
+        if (status && statusText) status.textContent = statusText;
+      }
+
+      // OCR待ち中の疑似プログレス（50%→90%を徐々に増加）
+      let ocrTimer = null;
+      let ocrPct = 50;
+      function startOcrProgress() {
+        ocrPct = 50;
+        const status = document.getElementById('upload-status');
+        if (status) status.innerHTML = '<div class="spinner mx-auto mb-1" style="display:inline-block;width:16px;height:16px;border-width:2px;vertical-align:middle;margin-right:6px"></div>AI読み取り中...';
+        ocrTimer = setInterval(() => {
+          // 50→90%まで徐々に増加（指数的に減速）
+          ocrPct = ocrPct + (90 - ocrPct) * 0.04;
+          setProgress(ocrPct, null);
+        }, 500);
+      }
+      function stopOcrProgress() {
+        if (ocrTimer) { clearInterval(ocrTimer); ocrTimer = null; }
+      }
+
       try {
         const result = await axios.post('/api/purchases/upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           onUploadProgress: (evt) => {
-            const pct = evt.total ? Math.round((evt.loaded / evt.total) * 100) : 0;
-            const fill = document.getElementById('progress-fill');
-            const label = document.getElementById('progress-pct');
-            const status = document.getElementById('upload-status');
-            if (fill) fill.style.width = pct + '%';
-            if (label) label.textContent = pct + '%';
-            if (status) {
-              if (pct < 100) {
-                status.textContent = 'アップロード中...';
-              } else {
-                status.innerHTML = '<div class="spinner mx-auto mb-1" style="width:20px;height:20px;border-width:2px"></div>AI読み取り中...';
-                if (fill) fill.style.width = '100%';
-                if (label) label.textContent = '読み取り中...';
-              }
+            if (!evt.total) return;
+            // アップロード進捗は全体の0〜50%に割り当て
+            const uploadPct = Math.round((evt.loaded / evt.total) * 50);
+            setProgress(uploadPct, 'アップロード中...');
+            if (evt.loaded >= evt.total) {
+              // アップロード完了 → OCR待ち疑似プログレス開始
+              startOcrProgress();
             }
           },
         });
+        stopOcrProgress();
+        setProgress(100, '完了！');
         if (result.data.ocr_error) {
           showToast('保存しましたが、自動読み取りに失敗しました。手動で入力してください', true);
         }
         location.hash = `#/purchase/${result.data.id}`;
       } catch (err) {
+        stopOcrProgress();
         const msg = (err.response && err.response.data && err.response.data.error) || '取り込みに失敗しました';
         showToast(msg, true);
       }
@@ -1044,6 +1098,7 @@
         <div class="flex gap-2">
           <a href="#/invoice/${invoice.id}/edit" class="btn-secondary rounded-lg px-3 py-2 text-sm"><i class="fas fa-pen mr-1"></i>編集</a>
           <button id="print-btn" class="btn-primary rounded-lg px-3 py-2 text-sm"><i class="fas fa-print mr-1"></i>印刷/PDF</button>
+          <button id="del-invoice-btn" class="btn-danger rounded-lg px-3 py-2 text-sm"><i class="fas fa-trash"></i></button>
         </div>
       </div>
 
@@ -1166,6 +1221,12 @@
     `;
 
     document.getElementById('print-btn').onclick = () => window.print();
+    document.getElementById('del-invoice-btn').onclick = async () => {
+      if (!confirm('この請求書を削除しますか？')) return;
+      await api('delete', `/api/invoices/${invoice.id}`);
+      showToast('削除しました');
+      location.hash = `#/customers/${invoice.customer_id}`;
+    };
     document.getElementById('status-select').onchange = async (e) => {
       await api('put', `/api/invoices/${invoice.id}/status`, { status: e.target.value });
       showToast('更新しました');
