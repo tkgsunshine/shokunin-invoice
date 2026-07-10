@@ -565,7 +565,7 @@
   });
 
   function statusLabel(status) {
-    const map = { draft: '下書き', sent: '送付済み', paid: '入金済み' };
+    const map = { draft: '下書き', issued: '発行済み', sent: '送付済み', paid: '入金済み' };
     return map[status] || status;
   }
 
@@ -1015,10 +1015,10 @@
         <div class="space-y-2">${renderInvoiceCards(drafts)}</div>
       </div>
 
-      <!-- 送付済み -->
+      <!-- 発行済み／送付済み -->
       <div class="mb-5">
         <div class="flex items-center gap-2 mb-2">
-          <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">送付済み ${sent.length}件</span>
+          <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">発行済み／送付済み ${sent.length}件</span>
         </div>
         <div class="space-y-2">${renderInvoiceCards(sent)}</div>
       </div>
@@ -1541,6 +1541,7 @@
         <label class="text-sm text-gray-500 mr-2">ステータス:</label>
         <select id="status-select" class="border rounded-lg p-2 text-sm">
           <option value="draft" ${invoice.status === 'draft' ? 'selected' : ''}>下書き</option>
+          <option value="issued" ${invoice.status === 'issued' ? 'selected' : ''}>発行済み</option>
           <option value="sent" ${invoice.status === 'sent' ? 'selected' : ''}>送付済み</option>
           <option value="paid" ${invoice.status === 'paid' ? 'selected' : ''}>入金済み</option>
         </select>
