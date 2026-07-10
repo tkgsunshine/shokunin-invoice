@@ -7,6 +7,13 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 const isVercel = !!process.env.BLOB_READ_WRITE_TOKEN
+
+// Vercel Blob store ID (from token: vercel_blob_rw_{storeId}_{secret})
+function getBlobStoreId(): string {
+  const token = process.env.BLOB_READ_WRITE_TOKEN ?? ''
+  const match = token.match(/vercel_blob_rw_([^_]+)_/)
+  return match ? match[1] : ''
+}
 const LOCAL_STORAGE_DIR = path.join(process.cwd(), '.local-storage')
 
 function ensureLocalDir() {
@@ -44,7 +51,8 @@ export const r2Adapter = {
     if (isVercel) {
       try {
         // Vercel Blob の URL を構築して fetch
-        const blobUrl = `https://${process.env.BLOB_STORE_ID}.public.blob.vercel-storage.com/${key}`
+        const storeId = getBlobStoreId()
+        const blobUrl = `https://${storeId}.public.blob.vercel-storage.com/${key}`
         const res = await fetch(blobUrl)
         if (!res.ok) return null
         const arrayBuffer = await res.arrayBuffer()
@@ -71,7 +79,8 @@ export const r2Adapter = {
     if (isVercel) {
       try {
         // Vercel Blob の URL を構築して削除
-        const blobUrl = `https://${process.env.BLOB_STORE_ID}.public.blob.vercel-storage.com/${key}`
+        const storeId = getBlobStoreId()
+        const blobUrl = `https://${storeId}.public.blob.vercel-storage.com/${key}`
         await del(blobUrl)
       } catch {}
     } else {
