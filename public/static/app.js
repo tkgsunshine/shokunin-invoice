@@ -207,8 +207,8 @@
       <div class="min-h-screen flex items-center justify-center p-4">
         <div class="card p-8 w-full max-w-sm">
           <h1 class="text-xl font-bold mb-2 text-center"><i class="fas fa-file-invoice text-blue-600 mr-2"></i>初期設定</h1>
-          <p class="text-sm text-gray-500 mb-6 text-center">合言葉（パスワード）を設定してください</p>
-          <input id="setup-pw" type="password" placeholder="合言葉（4文字以上）" class="w-full border rounded-lg p-3 mb-3 big-tap" />
+          <p class="text-sm text-gray-500 mb-6 text-center">パスワードを設定してください</p>
+          <input id="setup-pw" type="password" placeholder="パスワード（4文字以上）" class="w-full border rounded-lg p-3 mb-3 big-tap" />
           <input id="setup-pw2" type="password" placeholder="もう一度入力" class="w-full border rounded-lg p-3 mb-4 big-tap" />
           <button id="setup-btn" class="w-full btn-primary rounded-lg py-3 font-bold big-tap">設定してはじめる</button>
         </div>
@@ -216,7 +216,7 @@
     document.getElementById('setup-btn').onclick = async () => {
       const pw = document.getElementById('setup-pw').value;
       const pw2 = document.getElementById('setup-pw2').value;
-      if (pw !== pw2) return showToast('合言葉が一致しません', true);
+      if (pw !== pw2) return showToast('パスワードが一致しません', true);
       await api('post', '/api/auth/setup', { password: pw });
       showToast('設定しました');
       location.hash = '#/';
@@ -229,7 +229,7 @@
       <div class="min-h-screen flex items-center justify-center p-4">
         <div class="card p-8 w-full max-w-sm">
           <h1 class="text-xl font-bold mb-6 text-center"><i class="fas fa-file-invoice text-blue-600 mr-2"></i>かんたん請求書</h1>
-          <input id="login-pw" type="password" placeholder="合言葉" class="w-full border rounded-lg p-3 mb-4 big-tap" />
+          <input id="login-pw" type="password" placeholder="パスワード" class="w-full border rounded-lg p-3 mb-4 big-tap" />
           <button id="login-btn" class="w-full btn-primary rounded-lg py-3 font-bold big-tap">ログイン</button>
         </div>
       </div>`;
@@ -1215,10 +1215,10 @@
       <button id="settings-save-btn" class="w-full btn-primary rounded-lg py-3 font-bold big-tap mb-4">保存する</button>
 
       <div class="card p-5 mb-4">
-        <h3 class="font-bold mb-3">合言葉の変更</h3>
-        <input id="pw-current" type="password" placeholder="現在の合言葉" class="w-full border rounded-lg p-3 mb-3 big-tap" />
-        <input id="pw-new" type="password" placeholder="新しい合言葉（4文字以上）" class="w-full border rounded-lg p-3 mb-3 big-tap" />
-        <button id="pw-change-btn" class="w-full btn-secondary rounded-lg py-3 font-bold big-tap">合言葉を変更</button>
+        <h3 class="font-bold mb-3">パスワードの変更</h3>
+        <input id="pw-current" type="password" placeholder="現在のパスワード" class="w-full border rounded-lg p-3 mb-3 big-tap" />
+        <input id="pw-new" type="password" placeholder="新しいパスワード（4文字以上）" class="w-full border rounded-lg p-3 mb-3 big-tap" />
+        <button id="pw-change-btn" class="w-full btn-secondary rounded-lg py-3 font-bold big-tap">パスワードを変更</button>
       </div>
 
       <button id="logout-btn" class="w-full btn-danger rounded-lg py-3 font-bold big-tap"><i class="fas fa-sign-out-alt mr-1"></i>ログアウト</button>
@@ -1248,7 +1248,7 @@
       const currentPassword = document.getElementById('pw-current').value;
       const newPassword = document.getElementById('pw-new').value;
       await api('post', '/api/auth/change-password', { currentPassword, newPassword });
-      showToast('合言葉を変更しました');
+      showToast('パスワードを変更しました');
       document.getElementById('pw-current').value = '';
       document.getElementById('pw-new').value = '';
     };

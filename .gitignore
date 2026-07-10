@@ -40,4 +40,3 @@ lerna-debug.log*
 .dev.vars
 .vercel
 .env*
-api/index.js

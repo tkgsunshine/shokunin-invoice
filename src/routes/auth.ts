@@ -24,11 +24,11 @@ auth.get('/status', async (c) => {
   return c.json({ needsSetup, loggedIn })
 })
 
-// 初回セットアップ：合言葉(パスワード)を設定
+// 初回セットアップ：パスワード(パスワード)を設定
 auth.post('/setup', async (c) => {
   const { password } = await c.req.json<{ password: string }>()
   if (!password || password.length < 4) {
-    return c.json({ error: '合言葉は4文字以上で設定してください' }, 400)
+    return c.json({ error: 'パスワードは4文字以上で設定してください' }, 400)
   }
 
   const existing = await c.env.DB.prepare(
@@ -36,7 +36,7 @@ auth.post('/setup', async (c) => {
   ).first<{ password_hash: string | null }>()
 
   if (existing?.password_hash) {
-    return c.json({ error: '既に合言葉が設定されています' }, 400)
+    return c.json({ error: '既にパスワードが設定されています' }, 400)
   }
 
   const { hash, salt } = await hashPassword(password)
@@ -62,12 +62,12 @@ auth.post('/login', async (c) => {
   ).first<{ password_hash: string | null; password_salt: string | null; session_secret: string | null }>()
 
   if (!settings?.password_hash || !settings.password_salt) {
-    return c.json({ error: '合言葉が未設定です' }, 400)
+    return c.json({ error: 'パスワードが未設定です' }, 400)
   }
 
   const ok = await verifyPassword(password ?? '', settings.password_hash, settings.password_salt)
   if (!ok) {
-    return c.json({ error: '合言葉が違います' }, 401)
+    return c.json({ error: 'パスワードが違います' }, 401)
   }
 
   let sessionSecret = settings.session_secret
@@ -88,11 +88,11 @@ auth.post('/logout', async (c) => {
   return c.json({ success: true })
 })
 
-// 合言葉の変更（ログイン済みが前提）
+// パスワードの変更（ログイン済みが前提）
 auth.post('/change-password', async (c) => {
   const { currentPassword, newPassword } = await c.req.json<{ currentPassword: string; newPassword: string }>()
   if (!newPassword || newPassword.length < 4) {
-    return c.json({ error: '新しい合言葉は4文字以上で設定してください' }, 400)
+    return c.json({ error: '新しいパスワードは4文字以上で設定してください' }, 400)
   }
 
   const settings = await c.env.DB.prepare(
@@ -102,7 +102,7 @@ auth.post('/change-password', async (c) => {
   if (settings?.password_hash && settings.password_salt) {
     const ok = await verifyPassword(currentPassword ?? '', settings.password_hash, settings.password_salt)
     if (!ok) {
-      return c.json({ error: '現在の合言葉が違います' }, 401)
+      return c.json({ error: '現在のパスワードが違います' }, 401)
     }
   }
 
