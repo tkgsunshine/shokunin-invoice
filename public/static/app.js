@@ -498,22 +498,29 @@
       const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
 
       const previewArea = document.getElementById('preview-area');
-      if (isPdf) {
-        previewArea.innerHTML = `
+
+      // プログレスバーHTML生成
+      function progressHTML(mediaHTML) {
+        return `
           <div class="card p-4 mb-4 text-center">
-            <div class="w-20 h-20 mx-auto rounded-lg bg-red-50 flex items-center justify-center text-red-500 mb-3">
-              <i class="fas fa-file-pdf text-3xl"></i>
+            ${mediaHTML}
+            <div id="upload-status" class="text-gray-500 text-sm mb-1">アップロード中...</div>
+            <div class="progress-bar-wrap">
+              <div id="progress-fill" class="progress-bar-fill" style="width:0%"></div>
             </div>
-            <div class="text-sm text-gray-600 mb-2">${esc(file.name)}</div>
-            <div class="text-gray-500"><div class="spinner mx-auto mb-2"></div>読み取り中...</div>
+            <div id="progress-pct" class="progress-label">0%</div>
           </div>`;
+      }
+
+      if (isPdf) {
+        previewArea.innerHTML = progressHTML(`
+          <div class="w-20 h-20 mx-auto rounded-lg bg-red-50 flex items-center justify-center text-red-500 mb-3">
+            <i class="fas fa-file-pdf text-3xl"></i>
+          </div>
+          <div class="text-sm text-gray-600 mb-2">${esc(file.name)}</div>`);
       } else {
         const previewUrl = URL.createObjectURL(file);
-        previewArea.innerHTML = `
-          <div class="card p-4 mb-4 text-center">
-            <img src="${previewUrl}" class="max-h-48 mx-auto rounded-lg mb-3" />
-            <div class="text-gray-500"><div class="spinner mx-auto mb-2"></div>読み取り中...</div>
-          </div>`;
+        previewArea.innerHTML = progressHTML(`<img src="${previewUrl}" class="max-h-48 mx-auto rounded-lg mb-3" />`);
       }
 
       const formData = new FormData();
@@ -521,17 +528,31 @@
       if (customerId) formData.append('customer_id', customerId);
 
       try {
-        showLoading(true);
         const result = await axios.post('/api/purchases/upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (evt) => {
+            const pct = evt.total ? Math.round((evt.loaded / evt.total) * 100) : 0;
+            const fill = document.getElementById('progress-fill');
+            const label = document.getElementById('progress-pct');
+            const status = document.getElementById('upload-status');
+            if (fill) fill.style.width = pct + '%';
+            if (label) label.textContent = pct + '%';
+            if (status) {
+              if (pct < 100) {
+                status.textContent = 'アップロード中...';
+              } else {
+                status.innerHTML = '<div class="spinner mx-auto mb-1" style="width:20px;height:20px;border-width:2px"></div>AI読み取り中...';
+                if (fill) fill.style.width = '100%';
+                if (label) label.textContent = '読み取り中...';
+              }
+            }
+          },
         });
-        showLoading(false);
         if (result.data.ocr_error) {
           showToast('保存しましたが、自動読み取りに失敗しました。手動で入力してください', true);
         }
         location.hash = `#/purchase/${result.data.id}`;
       } catch (err) {
-        showLoading(false);
         const msg = (err.response && err.response.data && err.response.data.error) || '取り込みに失敗しました';
         showToast(msg, true);
       }
