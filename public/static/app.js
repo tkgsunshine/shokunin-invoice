@@ -88,6 +88,26 @@
     }
   }
 
+  // ---------- ドラフト保存・復元ユーティリティ ----------
+  function draftKey(routeId) { return 'draft_' + routeId; }
+  function saveDraft(routeId, data) {
+    try { sessionStorage.setItem(draftKey(routeId), JSON.stringify(data)); } catch(e) {}
+  }
+  function loadDraft(routeId) {
+    try { const v = sessionStorage.getItem(draftKey(routeId)); return v ? JSON.parse(v) : null; } catch(e) { return null; }
+  }
+  function clearDraft(routeId) {
+    try { sessionStorage.removeItem(draftKey(routeId)); } catch(e) {}
+  }
+  // フォームフィールドの値を自動保存するヘルパー
+  function autoSaveDraft(routeId, getDataFn, intervalMs) {
+    intervalMs = intervalMs || 800;
+    const timer = setInterval(() => {
+      try { saveDraft(routeId, getDataFn()); } catch(e) {}
+    }, intervalMs);
+    return timer;
+  }
+
   // ---------- ルーター ----------
   const routes = [];
   function route(pattern, handler) {
@@ -520,8 +540,14 @@
         <option value="">未定（あとで割り当て）</option>
         ${customers.map((c) => `<option value="${c.id}" ${String(c.id) === preselect ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
       </select>
-      <div id="preview-area"></div>`;
-
+            <div id="preview-area"></div>`;
+    // 仕入れ取込画面のお客さん選択をドラフト保存
+    const captureDraftKey = 'capture_customer';
+    const capDraft = loadDraft(captureDraftKey);
+    if (capDraft && capDraft.customer_id && !preselect) {
+      document.getElementById('pre-customer').value = capDraft.customer_id;
+    }
+    document.getElementById('pre-customer').onchange = (e) => saveDraft(captureDraftKey, { customer_id: e.target.value });
     document.getElementById('file-input').onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -669,11 +695,32 @@
       <button id="p-delete-btn" class="w-full btn-danger rounded-lg py-3 font-bold big-tap"><i class="fas fa-trash mr-1"></i>この仕入れを削除</button>
     `;
 
+    const purchaseDraftKey = 'purchase_' + purchase.id;
+    const savedDraft = loadDraft(purchaseDraftKey);
     let currentItems = items.map((i) => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit || '', unit_price: i.unit_price, amount: i.amount }));
     if (currentItems.length === 0) {
       currentItems = [{ name: '', quantity: 1, unit: '', unit_price: purchase.total_amount || 0, amount: purchase.total_amount || 0 }];
     }
+    // ドラフト復元
+    if (savedDraft) {
+      if (savedDraft.vendor_name !== undefined) document.getElementById('p-vendor').value = savedDraft.vendor_name;
+      if (savedDraft.document_type !== undefined) document.getElementById('p-doctype').value = savedDraft.document_type;
+      if (savedDraft.purchase_date !== undefined) document.getElementById('p-date').value = savedDraft.purchase_date;
+      if (savedDraft.customer_id !== undefined) document.getElementById('p-customer').value = savedDraft.customer_id;
+      if (savedDraft.items && savedDraft.items.length > 0) currentItems = savedDraft.items;
+    }
     renderItemsList();
+
+    // ドラフト自動保存（800msごと）
+    const draftTimer = autoSaveDraft(purchaseDraftKey, () => ({
+      vendor_name: document.getElementById('p-vendor')?.value,
+      document_type: document.getElementById('p-doctype')?.value,
+      purchase_date: document.getElementById('p-date')?.value,
+      customer_id: document.getElementById('p-customer')?.value,
+      items: currentItems,
+    }));
+    // 画面遷移時にタイマーをクリア
+    window.addEventListener('hashchange', () => clearInterval(draftTimer), { once: true });
 
     function renderItemsList() {
       const list = document.getElementById('items-list');
@@ -732,7 +779,7 @@
       renderItemsList();
     };
 
-    document.getElementById('p-save-meta').onclick = async () => {
+        document.getElementById('p-save-meta').onclick = async () => {
       await api('put', `/api/purchases/${purchase.id}`, {
         customer_id: document.getElementById('p-customer').value || null,
         vendor_name: document.getElementById('p-vendor').value,
@@ -741,11 +788,12 @@
         total_amount: purchase.total_amount,
         memo: '',
       });
+      clearDraft(purchaseDraftKey);
       showToast('保存しました');
     };
-
     document.getElementById('items-save-btn').onclick = async () => {
       await api('put', `/api/purchases/${purchase.id}/items`, { items: currentItems });
+      clearDraft(purchaseDraftKey);
       showToast('明細を保存しました');
     };
 
@@ -1048,9 +1096,32 @@
     document.getElementById('inv-fee').oninput = updateSummary;
     document.getElementById('inv-customer').onchange = (e) => loadAvailableItems(e.target.value);
 
+        // 請求書ドラフトキー
+    const invoiceDraftKey = isEdit ? 'invoice_edit_' + existingInvoice.id : 'invoice_new_' + (presetCustomerId || 'x');
+    const invDraft = loadDraft(invoiceDraftKey);
+    if (invDraft) {
+      if (invDraft.customer_id) { const sel = document.getElementById('inv-customer'); if (sel) sel.value = invDraft.customer_id; }
+      if (invDraft.issue_date) { const el = document.getElementById('inv-issue-date'); if (el) el.value = invDraft.issue_date; }
+      if (invDraft.due_date) { const el = document.getElementById('inv-due-date'); if (el) el.value = invDraft.due_date; }
+      if (invDraft.fee_percent !== undefined) { const el = document.getElementById('inv-fee'); if (el) el.value = invDraft.fee_percent; }
+      if (invDraft.memo !== undefined) { const el = document.getElementById('inv-memo'); if (el) el.value = invDraft.memo; }
+      if (invDraft.items && invDraft.items.length > 0) selectedItems = invDraft.items;
+    }
     renderSelectedItems();
-    if (presetCustomerId) loadAvailableItems(presetCustomerId);
-
+    const invDraftTimer = autoSaveDraft(invoiceDraftKey, () => ({
+      customer_id: document.getElementById('inv-customer')?.value,
+      issue_date: document.getElementById('inv-issue-date')?.value,
+      due_date: document.getElementById('inv-due-date')?.value,
+      fee_percent: document.getElementById('inv-fee')?.value,
+      memo: document.getElementById('inv-memo')?.value,
+      items: selectedItems,
+    }));
+    window.addEventListener('hashchange', () => clearInterval(invDraftTimer), { once: true });
+    if (invDraft && invDraft.customer_id) {
+      loadAvailableItems(invDraft.customer_id);
+    } else if (presetCustomerId) {
+      loadAvailableItems(presetCustomerId);
+    }
     document.getElementById('inv-save-btn').onclick = async () => {
       const customerId = document.getElementById('inv-customer').value;
       if (!customerId) return showToast('お客さんを選択してください', true);
@@ -1076,9 +1147,11 @@
       let result;
       if (isEdit) {
         result = await api('put', `/api/invoices/${existingInvoice.id}`, payload);
+        clearDraft(invoiceDraftKey);
         location.hash = `#/invoice/${existingInvoice.id}`;
       } else {
         result = await api('post', '/api/invoices', payload);
+        clearDraft(invoiceDraftKey);
         location.hash = `#/invoice/${result.id}`;
       }
       showToast('保存しました');
