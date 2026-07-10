@@ -191,6 +191,7 @@
     // TOPの3つの主要メニュー（仕入れを取り込む / お客さん一覧 / 設定）を常にヘッダーに表示
     const navItems = [
       { href: '#/purchase/capture', icon: 'fa-camera', label: '仕入れ取込', match: /^\/purchase\/capture/ },
+      { href: '#/invoice/new', icon: 'fa-file-invoice', label: '請求書作成', match: /^\/invoice\/new/ },
       { href: '#/customers', icon: 'fa-users', label: 'お客さん', match: /^\/customers/ },
       { href: '#/settings', icon: 'fa-cog', label: '設定', match: /^\/settings/ },
     ];
@@ -280,6 +281,13 @@
           <div>
             <div class="font-bold text-lg">仕入れを取り込む</div>
             <div class="text-sm text-gray-500">見積・請求書・レシートを撮影/選択</div>
+          </div>
+        </a>
+        <a href="#/invoice/new" class="card p-6 flex items-center gap-4 big-tap hover:shadow-md">
+          <div class="w-14 h-14 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-2xl"><i class="fas fa-file-invoice"></i></div>
+          <div>
+            <div class="font-bold text-lg">請求書を手打ちで作成</div>
+            <div class="text-sm text-gray-500">明細を直接入力して請求書を作成</div>
           </div>
         </a>
         <a href="#/customers" class="card p-6 flex items-center gap-4 big-tap hover:shadow-md">
