@@ -556,6 +556,28 @@
       document.getElementById('pre-customer').value = capDraft.customer_id;
     }
     document.getElementById('pre-customer').onchange = (e) => saveDraft(captureDraftKey, { customer_id: e.target.value });
+    // ① 画像をCanvas経由でリサイズ・圧縮するヘルパー（PDF以外）
+    async function compressImage(file, maxPx, quality) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          let { width, height } = img;
+          if (width > maxPx || height > maxPx) {
+            if (width >= height) { height = Math.round(height * maxPx / width); width = maxPx; }
+            else { width = Math.round(width * maxPx / height); height = maxPx; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+          canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', quality);
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+        img.src = url;
+      });
+    }
+
     document.getElementById('file-input').onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -588,8 +610,17 @@
         previewArea.innerHTML = progressHTML(`<img src="${previewUrl}" class="max-h-48 mx-auto rounded-lg mb-3" />`);
       }
 
+      // ① 画像の場合はアップロード前に圧縮（最大辺1800px、JPEG品質0.85）
+      let uploadFile = file;
+      if (!isPdf) {
+        setProgress(2, '画像を最適化中...');
+        try {
+          const compressed = await compressImage(file, 1800, 0.85);
+          uploadFile = new File([compressed], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
+        } catch(err) { uploadFile = file; }
+      }
       const formData = new FormData();
-      formData.append('image', file);
+      formData.append('image', uploadFile);
       if (customerId) formData.append('customer_id', customerId);
 
       // プログレス更新ヘルパー
@@ -1219,9 +1250,9 @@
           </div>
         </div>
 
-        <div class="text-center mb-8">
+        <div class="mb-8">
           <div class="text-sm text-gray-500">ご請求金額</div>
-          <div class="text-3xl font-bold">${yen(invoice.total_amount)}</div>
+          <div class="text-3xl font-bold border-b-2 border-gray-800 pb-1 inline-block">${yen(invoice.total_amount)}<span class="text-base font-normal ml-1">（税込）</span></div>
         </div>
 
         <table class="w-full text-sm mb-6 border-collapse">

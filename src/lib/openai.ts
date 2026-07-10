@@ -54,7 +54,7 @@ export async function extractPurchaseFromImage(
     : { type: 'image_url', image_url: { url: dataUrl } }
 
   const body = {
-    model: 'gpt-5-mini',
+    model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       {

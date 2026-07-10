@@ -82,7 +82,7 @@ purchases.post('/upload', async (c) => {
 
   const arrayBuffer = await file.arrayBuffer()
 
-  // ストレージに保存
+  // ① ストレージ保存のkeyを先に決定
   const extMap: Record<string, string> = {
     'image/jpeg': 'jpg',
     'image/png': 'png',
@@ -92,16 +92,20 @@ purchases.post('/upload', async (c) => {
   }
   const ext = extMap[contentType] || 'bin'
   const imageKey = `purchases/${Date.now()}-${randomHex(6)}.${ext}`
-  await c.env.R2.put(imageKey, arrayBuffer, { httpMetadata: { contentType } })
 
-  // OCR実行
+  // ①③ ストレージ保存とOCRを並列実行
   const base64 = arrayBufferToBase64(arrayBuffer)
+  const [, ocrSettled] = await Promise.allSettled([
+    c.env.R2.put(imageKey, arrayBuffer, { httpMetadata: { contentType } }),
+    extractPurchaseFromImage(c.env.OPENAI_API_KEY, c.env.OPENAI_BASE_URL, base64, contentType, file.name),
+  ])
+
   let ocrResult
   let ocrError: string | null = null
-  try {
-    ocrResult = await extractPurchaseFromImage(c.env.OPENAI_API_KEY, c.env.OPENAI_BASE_URL, base64, contentType, file.name)
-  } catch (e: unknown) {
-    const err = e as { message?: string }
+  if (ocrSettled.status === 'fulfilled') {
+    ocrResult = ocrSettled.value
+  } else {
+    const err = ocrSettled.reason as { message?: string }
     ocrError = err?.message ? String(err.message).slice(0, 500) : 'OCR処理でエラーが発生しました'
     ocrResult = {
       vendor_name: '',

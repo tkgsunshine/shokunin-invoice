@@ -2746,7 +2746,7 @@ async function extractPurchaseFromImage(apiKey, baseUrl, imageBase64, contentTyp
   const dataUrl = `data:${contentType};base64,${imageBase64}`;
   const fileContent = isPdf ? { type: "file", file: { filename: fileName || "document.pdf", file_data: dataUrl } } : { type: "image_url", image_url: { url: dataUrl } };
   const body = {
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       {
@@ -2882,14 +2882,17 @@ purchases.post("/upload", async (c) => {
   };
   const ext = extMap[contentType] || "bin";
   const imageKey = `purchases/${Date.now()}-${randomHex(6)}.${ext}`;
-  await c.env.R2.put(imageKey, arrayBuffer, { httpMetadata: { contentType } });
   const base64 = arrayBufferToBase64(arrayBuffer);
+  const [, ocrSettled] = await Promise.allSettled([
+    c.env.R2.put(imageKey, arrayBuffer, { httpMetadata: { contentType } }),
+    extractPurchaseFromImage(c.env.OPENAI_API_KEY, c.env.OPENAI_BASE_URL, base64, contentType, file.name)
+  ]);
   let ocrResult;
   let ocrError = null;
-  try {
-    ocrResult = await extractPurchaseFromImage(c.env.OPENAI_API_KEY, c.env.OPENAI_BASE_URL, base64, contentType, file.name);
-  } catch (e) {
-    const err = e;
+  if (ocrSettled.status === "fulfilled") {
+    ocrResult = ocrSettled.value;
+  } else {
+    const err = ocrSettled.reason;
     ocrError = err?.message ? String(err.message).slice(0, 500) : "OCR\u51E6\u7406\u3067\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F";
     ocrResult = {
       vendor_name: "",
