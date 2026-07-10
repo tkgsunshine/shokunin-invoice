@@ -2838,12 +2838,20 @@ purchases.get("/", async (c) => {
 });
 purchases.get("/items/available", async (c) => {
   const customerId = c.req.query("customer_id");
-  if (!customerId) return c.json({ error: "customer_id\u304C\u5FC5\u8981\u3067\u3059" }, 400);
+  if (!customerId) return c.json([]);
   const { results } = await c.env.DB.prepare(
     `SELECT pi.*, p.vendor_name, p.document_type, p.purchase_date, p.id as purchase_id
      FROM purchase_items pi
      JOIN purchases p ON p.id = pi.purchase_id
-     WHERE p.customer_id = ? AND pi.used_in_invoice_id IS NULL
+     WHERE p.customer_id = ?
+       AND (
+         pi.used_in_invoice_id IS NULL
+         OR EXISTS (
+           SELECT 1 FROM invoices inv
+           WHERE inv.id = pi.used_in_invoice_id
+             AND inv.status = 'draft'
+         )
+       )
      ORDER BY p.purchase_date DESC, pi.sort_order`
   ).bind(customerId).all();
   return c.json(results);
@@ -3064,7 +3072,7 @@ invoices.post("/", async (c) => {
   const result = await c.env.DB.prepare(
     `INSERT INTO invoices (customer_id, invoice_number, issue_date, due_date, fee_percent, tax_rate,
        subtotal_cost, fee_amount, amount_before_tax, tax_amount, total_amount, memo, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     body.customer_id,
     invoiceNumber,
@@ -3077,7 +3085,8 @@ invoices.post("/", async (c) => {
     amountBeforeTax,
     taxAmount,
     totalAmount,
-    body.memo ?? ""
+    body.memo ?? "",
+    body.status ?? "draft"
   ).run();
   const invoiceId = result.meta.last_row_id;
   for (let i = 0; i < computed.length; i++) {
@@ -3109,7 +3118,7 @@ invoices.put("/:id", async (c) => {
   await c.env.DB.prepare("DELETE FROM invoice_items WHERE invoice_id = ?").bind(id).run();
   await c.env.DB.prepare(
     `UPDATE invoices SET customer_id=?, issue_date=?, due_date=?, fee_percent=?, tax_rate=?,
-       subtotal_cost=?, fee_amount=?, amount_before_tax=?, tax_amount=?, total_amount=?, memo=?
+       subtotal_cost=?, fee_amount=?, amount_before_tax=?, tax_amount=?, total_amount=?, memo=?, status=?
      WHERE id=?`
   ).bind(
     body.customer_id,
@@ -3123,6 +3132,7 @@ invoices.put("/:id", async (c) => {
     taxAmount,
     totalAmount,
     body.memo ?? "",
+    body.status ?? "draft",
     id
   ).run();
   for (let i = 0; i < computed.length; i++) {

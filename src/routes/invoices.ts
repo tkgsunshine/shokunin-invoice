@@ -94,6 +94,7 @@ invoices.post('/', async (c) => {
     due_date: string
     fee_percent: number
     memo?: string
+    status?: string
     items: ItemInput[]
   }>()
 
@@ -116,7 +117,7 @@ invoices.post('/', async (c) => {
   const result = await c.env.DB.prepare(
     `INSERT INTO invoices (customer_id, invoice_number, issue_date, due_date, fee_percent, tax_rate,
        subtotal_cost, fee_amount, amount_before_tax, tax_amount, total_amount, memo, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       body.customer_id,
@@ -130,7 +131,8 @@ invoices.post('/', async (c) => {
       amountBeforeTax,
       taxAmount,
       totalAmount,
-      body.memo ?? ''
+      body.memo ?? '',
+      body.status ?? 'draft'
     )
     .run()
 
@@ -168,6 +170,7 @@ invoices.put('/:id', async (c) => {
     due_date: string
     fee_percent: number
     memo?: string
+    status?: string
     items: ItemInput[]
   }>()
 
@@ -193,7 +196,7 @@ invoices.put('/:id', async (c) => {
 
   await c.env.DB.prepare(
     `UPDATE invoices SET customer_id=?, issue_date=?, due_date=?, fee_percent=?, tax_rate=?,
-       subtotal_cost=?, fee_amount=?, amount_before_tax=?, tax_amount=?, total_amount=?, memo=?
+       subtotal_cost=?, fee_amount=?, amount_before_tax=?, tax_amount=?, total_amount=?, memo=?, status=?
      WHERE id=?`
   )
     .bind(
@@ -208,6 +211,7 @@ invoices.put('/:id', async (c) => {
       taxAmount,
       totalAmount,
       body.memo ?? '',
+      body.status ?? 'draft',
       id
     )
     .run()

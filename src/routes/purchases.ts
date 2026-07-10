@@ -28,20 +28,26 @@ purchases.get('/', async (c) => {
   return c.json(results)
 })
 
-// 顧客ごとの未使用（請求書未反映）明細一覧（請求書作成画面用）
+// 顧客ごとの未使用（請求書未反映）明細一覧（請求書作成画面用）※請求先設定済みのみ
 purchases.get('/items/available', async (c) => {
   const customerId = c.req.query('customer_id')
-  if (!customerId) return c.json({ error: 'customer_idが必要です' }, 400)
+  if (!customerId) return c.json([])
 
   const { results } = await c.env.DB.prepare(
     `SELECT pi.*, p.vendor_name, p.document_type, p.purchase_date, p.id as purchase_id
      FROM purchase_items pi
      JOIN purchases p ON p.id = pi.purchase_id
-     WHERE p.customer_id = ? AND pi.used_in_invoice_id IS NULL
+     WHERE p.customer_id = ?
+       AND (
+         pi.used_in_invoice_id IS NULL
+         OR EXISTS (
+           SELECT 1 FROM invoices inv
+           WHERE inv.id = pi.used_in_invoice_id
+             AND inv.status = 'draft'
+         )
+       )
      ORDER BY p.purchase_date DESC, pi.sort_order`
-  )
-    .bind(customerId)
-    .all()
+  ).bind(customerId).all()
 
   return c.json(results)
 })

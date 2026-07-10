@@ -42,7 +42,7 @@
         <span class="text-sm font-bold">PDFを開く</span>
       </a>`;
     }
-    return `<img src="${url}" class="w-full max-h-64 object-contain rounded-lg border mb-4 bg-gray-50" />`;
+    return `<img src="${url}" class="w-full max-h-64 object-contain rounded-lg border mb-4 bg-gray-50 cursor-zoom-in" onclick="openImageModal(this.src)" />`;
   }
 
   function showToast(msg, isError) {
@@ -165,7 +165,7 @@
     }
 
     if (hash !== '/login' && hash !== '/setup') {
-      renderNav(hash);
+      await renderNav(hash);
     }
 
     try {
@@ -186,27 +186,45 @@
     return el;
   }
 
-  function renderNav(currentHash) {
+  async function renderNav(currentHash) {
     let nav = document.getElementById('top-nav');
-    // TOPの3つの主要メニュー（仕入れを取り込む / お客さん一覧 / 設定）を常にヘッダーに表示
+    // TOPの3つの主要メニュー（仕入れを取り込む / 請求先（お客様）一覧 / 設定）を常にヘッダーに表示
     const navItems = [
-      { href: '#/purchase/capture', icon: 'fa-camera', label: '仕入れ取込', match: /^\/purchase\/capture/ },
-      { href: '#/invoice/new', icon: 'fa-file-invoice', label: '請求書作成', match: /^\/invoice\/new/ },
-      { href: '#/customers', icon: 'fa-users', label: 'お客さん', match: /^\/customers/ },
+      { href: '#/purchase/capture', icon: 'fa-camera', label: '仕入取込', match: /^\/purchase\/capture/ },
+      { href: '#/invoices', icon: 'fa-file-invoice', label: '請求書', match: /^\/invoice/ },
+      { href: '#/customers', icon: 'fa-users', label: 'お客様', match: /^\/customers/ },
       { href: '#/settings', icon: 'fa-cog', label: '設定', match: /^\/settings/ },
     ];
+    // 請求書未作成の仕入れ件数を取得
+    let unassignedCount = 0;
+    try {
+      const unassigned = await api('get', '/api/purchases?unassigned=1', null, { silent: true });
+      unassignedCount = Array.isArray(unassigned) ? unassigned.length : 0;
+    } catch(e) {}
+    const bannerHtml = unassignedCount > 0 ? `
+      <a href="#/purchases/unassigned" class="no-print block bg-amber-50 border-b border-amber-200 hover:bg-amber-100 transition-colors">
+        <div class="max-w-3xl mx-auto px-4 py-1.5 flex items-center gap-2">
+          <i class="fas fa-exclamation-triangle text-amber-500 text-sm"></i>
+          <span class="text-sm text-amber-800 font-bold">請求書未作成の仕入れ ${unassignedCount}件</span>
+          <i class="fas fa-chevron-right text-amber-400 text-xs ml-auto"></i>
+        </div>
+      </a>` : '';
     const navHtml = `
       <header id="top-nav" class="no-print bg-white border-b sticky top-0 z-40 shadow-sm">
         <div class="max-w-3xl mx-auto px-4 py-2 flex items-center justify-between">
-          <a href="#/" class="text-base font-bold text-blue-600 shrink-0"><i class="fas fa-file-invoice mr-1"></i>かんたん請求書</a>
-          <div class="flex gap-1">
+          <a href="#/" class="font-bold text-blue-600 shrink-0 whitespace-nowrap flex items-center gap-2 px-2 py-1 rounded-xl hover:bg-blue-50 active:bg-blue-100 transition-colors cursor-pointer select-none">
+            <img src="/static/logo.png" alt="logo" class="w-9 h-9 object-contain drop-shadow-sm" />
+            <span class="text-base tracking-wide">かんたん請求書</span>
+          </a>
+          <div class="flex gap-0.5">
             ${navItems.map((n) => `
-              <a href="${n.href}" class="flex flex-col items-center justify-center px-3 py-1 rounded-lg text-xs ${n.match.test('/' + currentHash.replace(/^\//, '').split('?')[0]) ? 'text-blue-600 bg-blue-50 font-bold' : 'text-gray-500 hover:text-blue-600'}" title="${n.label}">
-                <i class="fas ${n.icon} text-lg"></i>
-                <span class="mt-0.5">${n.label}</span>
+              <a href="${n.href}" class="flex flex-col items-center justify-center px-2 py-1 rounded-lg ${n.match.test('/' + currentHash.replace(/^\//, '').split('?')[0]) ? 'text-blue-600 bg-blue-50 font-bold' : 'text-gray-500 hover:text-blue-600'}" title="${n.label}">
+                <i class="fas ${n.icon} text-base"></i>
+                <span class="text-[10px] mt-0.5 whitespace-nowrap">${n.label}</span>
               </a>`).join('')}
           </div>
         </div>
+        ${bannerHtml}
       </header>`;
     if (!nav) {
       app.innerHTML = navHtml + '<div id="page-content" class="max-w-3xl mx-auto px-4 py-4"></div>';
@@ -283,44 +301,44 @@
             <div class="text-sm text-gray-500">見積・請求書・レシートを撮影/選択</div>
           </div>
         </a>
-        <a href="#/invoice/new" class="card p-6 flex items-center gap-4 big-tap hover:shadow-md">
+        <a href="#/invoices" class="card p-6 flex items-center gap-4 big-tap hover:shadow-md">
           <div class="w-14 h-14 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-2xl"><i class="fas fa-file-invoice"></i></div>
           <div>
-            <div class="font-bold text-lg">請求書を手打ちで作成</div>
-            <div class="text-sm text-gray-500">明細を直接入力して請求書を作成</div>
+            <div class="font-bold text-lg">請求書一覧</div>
+            <div class="text-sm text-gray-500">下書き・発行済みの請求書を管理</div>
           </div>
         </a>
         <a href="#/customers" class="card p-6 flex items-center gap-4 big-tap hover:shadow-md">
           <div class="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-2xl"><i class="fas fa-users"></i></div>
           <div>
-            <div class="font-bold text-lg">お客さん一覧</div>
-            <div class="text-sm text-gray-500">${customers.length}件のお客さんを管理中</div>
+            <div class="font-bold text-lg">請求先（お客様）一覧</div>
+            <div class="text-sm text-gray-500">${customers.length}件の請求先（お客様）を管理中</div>
           </div>
         </a>
         ${purchasesUnassigned.length ? `
         <a href="#/purchases/unassigned" class="card p-6 flex items-center gap-4 big-tap hover:shadow-md border-2 border-amber-300">
           <div class="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-2xl"><i class="fas fa-exclamation-triangle"></i></div>
           <div>
-            <div class="font-bold text-lg">未割当の仕入れ ${purchasesUnassigned.length}件</div>
-            <div class="text-sm text-gray-500">お客さんの割り当てが必要です</div>
+            <div class="font-bold text-lg">請求書未作成の仕入れ ${purchasesUnassigned.length}件</div>
+            <div class="text-sm text-gray-500">請求書をまだ作成していない仕入れがあります</div>
           </div>
         </a>` : ''}
       </div>`;
   });
 
   // ==================================================
-  // お客さん一覧
+  // 請求先（お客様）一覧
   // ==================================================
   route('/customers', async () => {
     const el = contentContainer();
     const customers = await api('get', '/api/customers');
     el.innerHTML = `
       <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold">お客さん一覧</h2>
+        <h2 class="text-xl font-bold">請求先（お客様）一覧</h2>
         <button id="add-customer-btn" class="btn-primary rounded-lg px-4 py-2 font-bold"><i class="fas fa-plus mr-1"></i>追加</button>
       </div>
       <div class="space-y-3">
-        ${customers.length === 0 ? '<div class="text-center text-gray-400 py-12">まだお客さんが登録されていません</div>' : ''}
+        ${customers.length === 0 ? '<div class="text-center text-gray-400 py-12">まだ請求先（お客様）が登録されていません</div>' : ''}
         ${customers.map((c) => `
           <div class="card p-4 flex justify-between items-center hover:shadow-md">
             <a href="#/customers/${c.id}" class="flex-1 flex justify-between items-center">
@@ -351,13 +369,19 @@
     });
   });
 
-  function openCustomerModal(customer) {
-    const root = document.getElementById('customer-modal-root');
+  function openCustomerModal(customer, onSaved) {
+    // customer-modal-rootが存在しない場合（未設定一覧など）は動的に生成
+    let root = document.getElementById('customer-modal-root');
+    if (!root) {
+      root = document.createElement('div');
+      root.id = 'customer-modal-root';
+      document.body.appendChild(root);
+    }
     const isEdit = !!customer;
     root.innerHTML = `
       <div class="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50" id="cust-modal-bg">
         <div class="card p-6 w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
-          <h3 class="font-bold text-lg mb-4">${isEdit ? 'お客さん編集' : 'お客さん追加'}</h3>
+          <h3 class="font-bold text-lg mb-4">${isEdit ? '請求先（お客様）編集' : '請求先（お客様）追加'}</h3>
           <label class="text-sm text-gray-500">お名前・会社名 *</label>
           <input id="cust-name" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(customer?.name || '')}" />
           <label class="text-sm text-gray-500">郵便番号</label>
@@ -377,6 +401,7 @@
 
     document.getElementById('cust-cancel').onclick = () => (root.innerHTML = '');
     document.getElementById('cust-modal-bg').onclick = (e) => { if (e.target.id === 'cust-modal-bg') root.innerHTML = ''; };
+    document.getElementById('cust-postal').addEventListener('input', () => lookupPostalCode('cust-postal', 'cust-address'));
     document.getElementById('cust-save').onclick = async () => {
       const data = {
         name: document.getElementById('cust-name').value.trim(),
@@ -389,12 +414,84 @@
       if (isEdit) {
         await api('put', `/api/customers/${customer.id}`, data);
         showToast('更新しました');
+        root.innerHTML = '';
+        if (onSaved) onSaved({ ...customer, ...data });
+        else render();
       } else {
-        await api('post', '/api/customers', data);
+        const newCustomer = await api('post', '/api/customers', data);
         showToast('追加しました');
+        root.innerHTML = '';
+        if (onSaved) onSaved(newCustomer);
+        else render();
       }
+    };
+  }
+
+  // 郵便番号から住所を自動補完（zipcloud API使用）
+  async function lookupPostalCode(postalInputId, addressInputId) {
+    const postal = document.getElementById(postalInputId)?.value.replace(/[^0-9]/g, '');
+    if (postal.length !== 7) return;
+    try {
+      const res = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${postal}`);
+      const json = await res.json();
+      if (json.results && json.results[0]) {
+        const r = json.results[0];
+        const addr = (r.address1 || '') + (r.address2 || '') + (r.address3 || '');
+        const addrEl = document.getElementById(addressInputId);
+        if (addrEl && !addrEl.value) addrEl.value = addr;
+        else if (addrEl) addrEl.value = addr;
+      }
+    } catch(e) {}
+  }
+
+  // 請求書作成画面内で請求先（お客様）を新規登録するモーダル
+  function openInvoiceCustomerModal() {
+    const root = document.getElementById('inv-customer-modal-root');
+    if (!root) return;
+    root.innerHTML = `
+      <div class="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50" id="inv-cust-modal-bg">
+        <div class="card p-6 w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <h3 class="font-bold text-lg mb-4">請求先（お客様）を新規登録</h3>
+          <label class="text-sm text-gray-500">お名前・会社名 *</label>
+          <input id="inv-cust-name" class="w-full border rounded-lg p-3 mb-3 big-tap" placeholder="例：株式会社○○" />
+          <label class="text-sm text-gray-500">郵便番号</label>
+          <input id="inv-cust-postal" class="w-full border rounded-lg p-3 mb-3 big-tap" />
+          <label class="text-sm text-gray-500">住所</label>
+          <input id="inv-cust-address" class="w-full border rounded-lg p-3 mb-3 big-tap" />
+          <label class="text-sm text-gray-500">電話番号</label>
+          <input id="inv-cust-phone" class="w-full border rounded-lg p-3 mb-3 big-tap" />
+          <label class="text-sm text-gray-500">メモ</label>
+          <textarea id="inv-cust-memo" class="w-full border rounded-lg p-3 mb-4"></textarea>
+          <div class="flex gap-3">
+            <button id="inv-cust-cancel" class="flex-1 btn-secondary rounded-lg py-3 font-bold big-tap">キャンセル</button>
+            <button id="inv-cust-save" class="flex-1 btn-primary rounded-lg py-3 font-bold big-tap">登録して選択</button>
+          </div>
+        </div>
+      </div>`;
+    document.getElementById('inv-cust-cancel').onclick = () => (root.innerHTML = '');
+    document.getElementById('inv-cust-modal-bg').onclick = (e) => { if (e.target.id === 'inv-cust-modal-bg') root.innerHTML = ''; };
+    document.getElementById('inv-cust-postal').addEventListener('input', () => lookupPostalCode('inv-cust-postal', 'inv-cust-address'));
+    document.getElementById('inv-cust-save').onclick = async () => {
+      const name = document.getElementById('inv-cust-name').value.trim();
+      if (!name) return showToast('お名前を入力してください', true);
+      const data = {
+        name,
+        postal_code: document.getElementById('inv-cust-postal').value.trim(),
+        address: document.getElementById('inv-cust-address').value.trim(),
+        phone: document.getElementById('inv-cust-phone').value.trim(),
+        memo: document.getElementById('inv-cust-memo').value.trim(),
+      };
+      const result = await api('post', '/api/customers', data);
+      // selectに追加して選択状態にする
+      const sel = document.getElementById('inv-customer');
+      const opt = document.createElement('option');
+      opt.value = result.id;
+      opt.textContent = name;
+      sel.appendChild(opt);
+      sel.value = result.id;
+      sel.dispatchEvent(new Event('change'));
       root.innerHTML = '';
-      render();
+      showToast('登録しました');
     };
   }
 
@@ -407,7 +504,7 @@
 
     el.innerHTML = `
       <div class="mb-4">
-        <a href="#/customers" class="text-blue-600 text-sm"><i class="fas fa-chevron-left mr-1"></i>お客さん一覧へ</a>
+        <a href="#/customers" class="text-blue-600 text-sm"><i class="fas fa-chevron-left mr-1"></i>請求先（お客様）一覧へ</a>
       </div>
       <div class="card p-5 mb-4">
         <div class="flex justify-between items-start">
@@ -424,8 +521,8 @@
       </div>
 
       <div class="grid grid-cols-2 gap-3 mb-6">
-        <a href="#/purchase/capture?customer_id=${customer.id}" class="btn-primary rounded-lg py-3 text-center font-bold big-tap"><i class="fas fa-camera mr-1"></i>仕入れ取込</a>
-        <a href="#/invoice/new?customer_id=${customer.id}" class="rounded-lg py-3 text-center font-bold big-tap text-white" style="background:#059669"><i class="fas fa-file-invoice mr-1"></i>請求書作成</a>
+        <a href="#/purchase/capture?customer_id=${customer.id}" class="btn-primary rounded-lg py-3 font-bold big-tap flex items-center justify-center gap-1"><i class="fas fa-camera"></i>仕入れ取込</a>
+        <a href="#/invoice/new?customer_id=${customer.id}" class="rounded-lg py-3 font-bold big-tap text-white flex items-center justify-center gap-1" style="background:#059669"><i class="fas fa-file-invoice"></i>請求書作成</a>
       </div>
 
       <h3 class="font-bold mb-2 mt-6">請求書 (${invoices.length})</h3>
@@ -482,34 +579,51 @@
       api('get', '/api/customers'),
     ]);
     el.innerHTML = `
-      <h2 class="text-xl font-bold mb-4">未割当の仕入れ</h2>
+      <div class="flex items-center gap-2 mb-1">
+        <a href="javascript:history.back()" class="text-blue-600 text-sm"><i class="fas fa-chevron-left"></i> 戻る</a>
+      </div>
+      <h2 class="text-xl font-bold mb-1">請求先未設定の仕入れ</h2>
+      <p class="text-sm text-gray-500 mb-4">請求先を登録すると、請求書作成画面の明細欄に表示されます</p>
       <div class="space-y-3">
         ${purchases.map((p) => `
           <div class="card p-4">
             <div class="flex gap-3 mb-3">
               ${mediaThumbHtml(p, 'w-16 h-16')}
-              <div class="flex-1">
-                <div class="font-bold">${esc(p.vendor_name || '(不明)')}</div>
+              <div class="flex-1 min-w-0">
+                <div class="font-bold truncate">${esc(p.vendor_name || '(仕入先不明)')}</div>
                 <div class="text-xs text-gray-500">${esc(p.purchase_date || '')} ・ ${esc(p.document_type || '')}</div>
-                <div class="font-bold">${yen(p.total_amount)}</div>
+                <div class="font-bold text-blue-700">${yen(p.total_amount)}</div>
               </div>
             </div>
-            <select data-id="${p.id}" class="assign-select w-full border rounded-lg p-2 big-tap">
-              <option value="">お客さんを選択...</option>
+            <label class="text-xs text-gray-500 mb-1 block">請求先を選択して登録</label>
+            <select data-id="${p.id}" class="assign-select w-full border rounded-lg p-2">
+              <option value="">請求先（お客様）を選択...</option>
+              <option value="__new__">➕ 新規登録</option>
               ${customers.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}
             </select>
             <button class="del-purchase-btn w-full mt-2 text-red-400 hover:text-red-600 text-sm py-1" data-id="${p.id}"><i class="fas fa-trash mr-1"></i>削除</button>
           </div>`).join('')}
-        ${purchases.length === 0 ? '<div class="text-center text-gray-400 py-12">未割当の仕入れはありません</div>' : ''}
+        ${purchases.length === 0 ? '<div class="text-center text-gray-400 py-12"><i class="fas fa-check-circle text-green-400 text-3xl mb-3 block"></i>請求先未設定の仕入れはありません</div>' : ''}
       </div>`;
 
     document.querySelectorAll('.assign-select').forEach((sel) => {
       sel.onchange = async (e) => {
-        const id = e.target.dataset.id;
-        const customerId = e.target.value;
-        if (!customerId) return;
-        await api('put', `/api/purchases/${id}`, { customer_id: customerId });
-        showToast('割り当てました');
+        const purchaseId = e.target.dataset.id;
+        const val = e.target.value;
+        if (!val) return;
+        if (val === '__new__') {
+          // 新規登録モーダルを開く
+          e.target.value = ''; // 選択を戻す
+          openCustomerModal(null, async (newCustomer) => {
+            // 登録完了後に自動割り当て
+            await api('put', `/api/purchases/${purchaseId}`, { customer_id: newCustomer.id });
+            showToast(`${newCustomer.name} に登録しました`);
+            render();
+          });
+          return;
+        }
+        await api('put', `/api/purchases/${purchaseId}`, { customer_id: val });
+        showToast('請求先を登録しました');
         render();
       };
     });
@@ -543,7 +657,7 @@
         </label>
         <input id="file-input" type="file" accept="image/*,application/pdf,.pdf" class="file-hidden" />
       </div>
-      <label class="text-sm text-gray-500">お客さん（あとで割り当ても可）</label>
+      <label class="text-sm text-gray-500">請求先（お客様）（あとで割り当ても可）</label>
       <select id="pre-customer" class="w-full border rounded-lg p-3 mb-2 big-tap">
         <option value="">未定（あとで割り当て）</option>
         ${customers.map((c) => `<option value="${c.id}" ${String(c.id) === preselect ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
@@ -695,7 +809,7 @@
       <div class="card p-4 mb-4">
         ${mediaPreviewHtml(purchase)}
 
-        <label class="text-sm text-gray-500">お客さん</label>
+        <label class="text-sm text-gray-500">請求先（お客様）</label>
         <select id="p-customer" class="w-full border rounded-lg p-3 mb-3 big-tap">
           <option value="">未定</option>
           ${customers.map((c) => `<option value="${c.id}" ${c.id === purchase.customer_id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
@@ -847,7 +961,7 @@
     document.getElementById('p-to-invoice-btn').onclick = async () => {
       let customerId = document.getElementById('p-customer').value;
       if (!customerId) {
-        showToast('先にお客さんを選択・保存してください', true);
+        showToast('先に請求先（お客様）を選択・保存してください', true);
         document.getElementById('p-customer').focus();
         return;
       }
@@ -863,6 +977,60 @@
       await api('put', `/api/purchases/${purchase.id}/items`, { items: currentItems });
       location.hash = `#/invoice/new?customer_id=${customerId}`;
     };
+  });
+
+  // ==================================================
+  // 請求書一覧
+  // ==================================================
+  route('/invoices', async () => {
+    const el = contentContainer();
+    const invoiceList = await api('get', '/api/invoices');
+    const drafts = invoiceList.filter((i) => !i.status || i.status === 'draft');
+    const sent = invoiceList.filter((i) => i.status === 'sent' || i.status === 'issued');
+    const paid = invoiceList.filter((i) => i.status === 'paid');
+
+    function renderInvoiceCards(list) {
+      if (list.length === 0) return '<div class="text-gray-400 text-sm py-4 text-center">まだありません</div>';
+      return list.map((i) => `
+        <a href="#/invoice/${i.id}" class="card p-3 flex justify-between items-center hover:shadow-md">
+          <div>
+            <div class="font-bold">${esc(i.invoice_number || '(下書き)')}</div>
+            <div class="text-xs text-gray-500">${esc(i.customer_name || '')} ・ ${esc(i.issue_date || '')} ・ <span class="${i.status === 'draft' ? 'text-amber-600' : 'text-green-600'}">${statusLabel(i.status)}</span></div>
+          </div>
+          <div class="font-bold text-lg">${yen(i.total_amount)}</div>
+        </a>`).join('');
+    }
+
+    el.innerHTML = `
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold"><i class="fas fa-file-invoice mr-2 text-blue-600"></i>請求書一覧</h2>
+        <a href="#/invoice/new" class="btn-primary rounded-lg px-4 py-2 font-bold"><i class="fas fa-plus mr-1"></i>新規作成</a>
+      </div>
+
+      <!-- 下書き -->
+      <div class="mb-5">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">下書き ${drafts.length}件</span>
+        </div>
+        <div class="space-y-2">${renderInvoiceCards(drafts)}</div>
+      </div>
+
+      <!-- 送付済み -->
+      <div class="mb-5">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">送付済み ${sent.length}件</span>
+        </div>
+        <div class="space-y-2">${renderInvoiceCards(sent)}</div>
+      </div>
+
+      <!-- 入金済み -->
+      <div class="mb-5">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">入金済み ${paid.length}件</span>
+        </div>
+        <div class="space-y-2">${renderInvoiceCards(paid)}</div>
+      </div>
+    `;
   });
 
   // ==================================================
@@ -908,55 +1076,112 @@
     el.innerHTML = `
       <h2 class="text-xl font-bold mb-4"><i class="fas fa-file-invoice mr-2 text-green-600"></i>${isEdit ? '請求書を編集' : '請求書を作成'}</h2>
 
-      <div class="card p-4 mb-4">
-        <label class="text-sm text-gray-500">お客さん *</label>
-        <select id="inv-customer" class="w-full border rounded-lg p-3 mb-3 big-tap">
+      <!-- ステップインジケーター -->
+      <div class="flex items-center justify-between mb-5 px-1">
+        <div class="flex flex-col items-center gap-1">
+          <div class="w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-bold flex items-center justify-center shadow">1</div>
+          <span class="text-xs text-blue-600 font-bold">請求先</span>
+        </div>
+        <div class="flex-1 h-0.5 bg-gray-200 mx-1"></div>
+        <div class="flex flex-col items-center gap-1">
+          <div class="w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-bold flex items-center justify-center shadow">2</div>
+          <span class="text-xs text-blue-600 font-bold">商品選択</span>
+        </div>
+        <div class="flex-1 h-0.5 bg-gray-200 mx-1"></div>
+        <div class="flex flex-col items-center gap-1">
+          <div class="w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-bold flex items-center justify-center shadow">3</div>
+          <span class="text-xs text-blue-600 font-bold">売価設定</span>
+        </div>
+      </div>
+
+      <!-- STEP 1 -->
+      <div class="card p-4 mb-4 border-l-4 border-blue-500">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">STEP 1</span>
+          <span class="font-bold text-base">請求先情報の登録</span>
+        </div>
+        <label class="text-sm text-gray-500 mb-1 block">請求先（お客様） *</label>
+        <select id="inv-customer" class="w-full border rounded-lg px-3 py-2 mb-2 text-base">
           <option value="">選択してください</option>
+          <option value="__new__">➕ 新規登録</option>
           ${customers.map((c) => `<option value="${c.id}" ${String(c.id) === String(presetCustomerId) ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
         </select>
-        <div class="grid grid-cols-2 gap-3 mb-3">
-          <div>
-            <label class="text-sm text-gray-500">発行日</label>
-            <input id="inv-issue-date" type="date" class="w-full border rounded-lg p-3 big-tap" value="${existingInvoice?.issue_date || todayStr()}" />
-          </div>
-          <div>
-            <label class="text-sm text-gray-500">支払期限</label>
-            <input id="inv-due-date" type="date" class="w-full border rounded-lg p-3 big-tap" value="${existingInvoice?.due_date || ''}" />
-          </div>
+        <div id="inv-customer-modal-root"></div>
+        <div class="mb-2">
+          <label class="text-sm text-gray-500">発行日</label>
+          <input id="inv-issue-date" type="date" class="w-full border rounded-lg px-3 py-2 text-base" value="${existingInvoice?.issue_date || todayStr()}" />
         </div>
-        <div class="grid grid-cols-2 gap-3 mb-3">
-          <div>
-            <label class="text-sm text-gray-500">基本利益率 (%)<span class="text-gray-400">（項目ごとに上書き可）</span></label>
-            <input id="inv-fee" type="number" step="any" class="w-full border rounded-lg p-3 big-tap" value="${defaultFeePercent}" />
+        <div class="mb-2">
+          <label class="text-sm text-gray-500">支払期限</label>
+          <input id="inv-due-date" type="date" class="w-full border rounded-lg px-3 py-2 text-base" value="${existingInvoice?.due_date || ''}" />
+        </div>
+        <div class="grid grid-cols-2 gap-3 mb-2">
+          <div class="flex flex-col">
+            <label class="text-sm text-gray-500 mb-1">基本利益率</label>
+            <div class="flex items-center gap-2">
+              <input id="inv-fee" type="number" step="any" class="flex-1 border rounded-lg px-3 py-2 text-base" style="min-width:0;" value="${defaultFeePercent}" />
+              <span class="text-gray-500 font-bold text-sm shrink-0">%</span>
+            </div>
           </div>
-          <div>
-            <label class="text-sm text-gray-500">消費税</label>
-            <div class="w-full border rounded-lg p-3 bg-gray-100 text-gray-600 font-bold">一律 10%</div>
+          <div class="flex flex-col">
+            <label class="text-sm text-gray-500 mb-1">消費税</label>
+            <div class="border rounded-lg px-3 py-2 bg-gray-100 text-gray-600 font-bold text-base">一律 10%</div>
           </div>
         </div>
         <label class="text-sm text-gray-500">備考</label>
-        <textarea id="inv-memo" class="w-full border rounded-lg p-3 big-tap">${esc(existingInvoice?.memo || '')}</textarea>
+        <textarea id="inv-memo" class="w-full border rounded-lg px-3 py-2 text-base" rows="3">${esc(existingInvoice?.memo || '')}</textarea>
       </div>
 
-      <div class="card p-4 mb-4">
-        <div class="flex justify-between items-center mb-3">
-          <h3 class="font-bold">明細（仕入れから選択 + 手動追加OK）</h3>
+      <!-- STEP 2 -->
+      <div class="card p-4 mb-4 border-l-4 border-blue-500">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">STEP 2</span>
+          <span class="font-bold text-base">仕入れ商品の選択</span>
         </div>
-        <div id="available-items-area" class="mb-4"></div>
-        <button id="add-manual-item" class="text-blue-600 text-sm mb-3"><i class="fas fa-plus mr-1"></i>手動で明細を追加</button>
-        <div id="selected-items-list"></div>
+
+        <!-- ① 商品選択エリア -->
+        <div class="border rounded-xl p-3 mb-2 bg-gray-50">
+          <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">① 仕入れから選択</div>
+          <div id="available-items-area" class="mb-2"></div>
+          <a href="#/purchases/unassigned" class="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 hover:bg-amber-100 transition-colors">
+            <i class="fas fa-exclamation-triangle text-amber-500"></i>
+            <span>請求先未設定の仕入れを確認・登録</span>
+            <i class="fas fa-chevron-right text-amber-400 ml-auto"></i>
+          </a>
+        </div>
+
+        <!-- 矢印 -->
+        <div class="flex items-center justify-center my-2 text-blue-400">
+          <i class="fas fa-arrow-down text-xl"></i>
+        </div>
+
+        <!-- ② 反映済み明細エリア -->
+        <div class="border-2 border-blue-200 rounded-xl p-3 bg-blue-50">
+          <div class="text-xs font-bold text-blue-600 uppercase tracking-wide mb-2">② 請求書に反映する明細</div>
+          <div id="selected-items-list"></div>
+          <button id="add-manual-item" class="text-blue-600 text-sm mt-2"><i class="fas fa-plus mr-1"></i>手動で明細を追加</button>
+        </div>
       </div>
 
-      <div class="card p-4 mb-4">
-        <h3 class="font-bold mb-2 text-sm text-gray-600"><i class="fas fa-chart-line mr-1"></i>項目ごとの原価・利益（参考表示）</h3>
+      <!-- STEP 3 -->
+      <div class="card p-4 mb-4 border-l-4 border-blue-500">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">STEP 3</span>
+          <span class="font-bold text-base">売価の設定</span>
+        </div>
         <div id="profit-breakdown" class="space-y-2"></div>
       </div>
 
       <div class="card p-4 mb-4" id="calc-summary"></div>
 
-      <button id="inv-save-btn" class="w-full btn-primary rounded-lg py-4 font-bold text-lg big-tap mb-3">
-        <i class="fas fa-check mr-1"></i>${isEdit ? '更新する' : '請求書を作成する'}
-      </button>
+      <div class="flex gap-3 mb-3">
+        <button id="inv-draft-btn" class="flex-1 btn-secondary rounded-lg py-4 font-bold text-base big-tap">
+          <i class="fas fa-save mr-1"></i>下書き保存
+        </button>
+        <button id="inv-issue-btn" class="flex-1 btn-primary rounded-lg py-4 font-bold text-base big-tap">
+          <i class="fas fa-paper-plane mr-1"></i>発行する
+        </button>
+      </div>
     `;
 
     let selectedItems = [...existingItems];
@@ -964,19 +1189,19 @@
     async function loadAvailableItems(customerId) {
       const areaEl = document.getElementById('available-items-area');
       if (!customerId) {
-        areaEl.innerHTML = '<div class="text-sm text-gray-400">お客さんを選択すると未使用の仕入れ明細が表示されます</div>';
+        areaEl.innerHTML = '<div class="text-sm text-gray-400 py-1">請求先（お客様）を選択すると、その請求先の仕入れ明細が表示されます</div>';
         return;
       }
       const avail = await api('get', `/api/purchases/items/available?customer_id=${customerId}`, null, { silent: true });
-      if (avail.length === 0) {
-        areaEl.innerHTML = '<div class="text-sm text-gray-400">未反映の仕入れ明細はありません</div>';
+      if (!avail || avail.length === 0) {
+        areaEl.innerHTML = '<div class="text-sm text-gray-400 py-1">この請求先の取り込み済み仕入れはありません</div>';
         return;
       }
       areaEl.innerHTML = `
-        <div class="text-sm text-gray-500 mb-2">未反映の仕入れ明細（チェックして請求書に反映）</div>
-        <div class="space-y-2 max-h-60 overflow-y-auto border rounded-lg p-2">
+        <div class="text-sm text-gray-500 mb-2">仕入れ明細（チェックして請求書に反映）</div>
+        <div class="space-y-1 max-h-72 overflow-y-auto border rounded-lg p-2">
           ${avail.map((it) => `
-            <label class="flex items-center gap-2 text-sm border-b pb-2">
+            <label class="flex items-center gap-2 text-sm border-b pb-1 last:border-0 cursor-pointer hover:bg-gray-50 rounded px-1">
               <input type="checkbox" class="avail-check" data-item='${JSON.stringify({
                 purchase_item_id: it.id,
                 name: it.name,
@@ -985,8 +1210,11 @@
                 unit_price: it.unit_price,
                 cost_amount: it.amount,
               }).replace(/'/g, "&apos;")}' />
-              <span class="flex-1">${esc(it.name)} <span class="text-gray-400">(${esc(it.vendor_name || '')} ${esc(it.purchase_date || '')})</span></span>
-              <span class="font-bold">${yen(it.amount)}</span>
+              <span class="flex-1">
+                ${esc(it.name)}
+                <span class="text-gray-400 text-xs">(${esc(it.vendor_name || '')} ${esc(it.purchase_date || '')})</span>
+              </span>
+              <span class="font-bold shrink-0">${yen(it.amount)}</span>
             </label>`).join('')}
         </div>`;
 
@@ -1006,7 +1234,7 @@
     // 項目ごとの利益率（未設定なら基本利益率を使用）から金額・利益額・消費税額を算出
     function calcItemDisplay(it) {
       const baseFee = Number(document.getElementById('inv-fee').value) || 0;
-      const feePercent = it.fee_percent === null || it.fee_percent === undefined || it.fee_percent === '' ? baseFee : Number(it.fee_percent);
+      const feePercent = (it.fee_percent === null || it.fee_percent === undefined) ? baseFee : Number(it.fee_percent);
       const cost = Number(it.cost_amount) || 0;
       const billed = Math.round(cost * (1 + feePercent / 100));
       const profit = billed - cost;
@@ -1062,20 +1290,44 @@
       breakdownEl.innerHTML = selectedItems
         .map((it, idx) => {
           const { feePercent, cost, billed, profit, itemTax } = calcItemDisplay(it);
+          const isDefaultFee = it.fee_percent === null || it.fee_percent === undefined;
           return `
-          <div class="border rounded-lg p-3 bg-gray-50" data-pidx="${idx}">
-            <div class="text-sm font-bold mb-2 truncate">${esc(it.name || '(品目名未入力)')}</div>
-            <div class="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-2">
-              <div>仕入原価: <span class="font-bold text-gray-800">${yen(cost)}</span></div>
-              <div>請求額(税抜): <span class="font-bold text-gray-800">${yen(billed)}</span></div>
-              <div>利益額: <span class="font-bold text-green-600">${yen(profit)}</span></div>
-              <div>消費税(10%): <span class="font-bold text-gray-800">${yen(itemTax)}</span></div>
+          <div class="border-2 border-blue-100 rounded-xl p-3 bg-white" data-pidx="${idx}">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-sm font-bold truncate flex-1 mr-2">${esc(it.name || '(品目名未入力)')}</div>
+              ${isDefaultFee
+                ? '<span class="text-xs bg-gray-100 text-gray-400 rounded px-2 py-0.5 shrink-0">基本利益率</span>'
+                : '<button class="pb-reset text-xs bg-blue-50 text-blue-500 border border-blue-200 rounded px-2 py-0.5 shrink-0 hover:bg-blue-100">基本に戻す</button>'}
             </div>
-            <div class="flex items-center gap-2">
-              <label class="text-xs text-gray-500 shrink-0">利益率</label>
-              <input class="pb-fee w-20 border rounded-lg p-1 text-sm text-right" type="number" step="any" value="${feePercent}" />
-              <span class="text-xs text-gray-500">%</span>
-              ${it.fee_percent === null || it.fee_percent === undefined || it.fee_percent === '' ? '<span class="text-xs text-gray-400">(基本利益率を使用中)</span>' : '<button class="pb-reset text-xs text-blue-500 underline">基本利益率に戻す</button>'}
+            <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mb-3">
+              <div class="flex justify-between">
+                <span class="text-gray-500">仕入原価</span>
+                <span class="font-bold text-gray-700">${yen(cost)}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">請求額(税抜)</span>
+                <span class="font-bold text-blue-700">${yen(billed)}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">利益額</span>
+                <span class="font-bold text-green-600">${yen(profit)}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">消費税(10%)</span>
+                <span class="font-bold text-gray-600">${yen(itemTax)}</span>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2 bg-gray-50 rounded-lg px-3 py-2">
+              <div class="flex items-center gap-1">
+                <label class="text-xs text-gray-500 shrink-0">利益率</label>
+                <input class="pb-fee flex-1 min-w-0 border rounded-lg px-2 py-1 text-sm text-right" type="number" step="any" value="${feePercent}" />
+                <span class="text-xs text-gray-500 shrink-0">%</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <label class="text-xs text-gray-500 shrink-0">売価</label>
+                <input class="pb-billed flex-1 min-w-0 border rounded-lg px-2 py-1 text-sm text-right" type="number" step="any" value="${billed}" />
+                <span class="text-xs text-gray-500 shrink-0">円</span>
+              </div>
             </div>
           </div>`;
         })
@@ -1084,21 +1336,75 @@
       breakdownEl.querySelectorAll('[data-pidx]').forEach((box) => {
         const idx = Number(box.dataset.pidx);
         const feeInput = box.querySelector('.pb-fee');
+        const billedInput = box.querySelector('.pb-billed');
+
+        // 利益率変更 → 売価自動計算（DOM再生成なし）
         feeInput.oninput = (e) => {
           const v = e.target.value;
-          selectedItems[idx].fee_percent = v === '' ? null : Number(v);
-          renderProfitBreakdown();
-          updateSummary();
+          // 入力中（末尾が「.」「-」空など）は途中なので売価を更新しない
+          if (v === '' || v === '-' || v.endsWith('.')) {
+            selectedItems[idx].fee_percent = v === '' ? null : (isNaN(Number(v)) ? null : Number(v));
+            updateSummaryOnly();
+            return;
+          }
+          const fee = Number(v);
+          selectedItems[idx].fee_percent = fee;
+          const cost = Number(selectedItems[idx].cost_amount) || 0;
+          billedInput.value = Math.round(cost * (1 + fee / 100));
+          updateSummaryOnly();
         };
+
+        // 売価手打ち → 利益率自動計算（DOM再生成なし）
+        billedInput.oninput = (e) => {
+          const v = e.target.value;
+          if (v === '' || v === '-' || v.endsWith('.')) {
+            updateSummaryOnly();
+            return;
+          }
+          const billedVal = Number(v);
+          const cost = Number(selectedItems[idx].cost_amount) || 0;
+          const newFee = cost > 0 ? Math.round((billedVal / cost - 1) * 100 * 10) / 10 : 0;
+          selectedItems[idx].fee_percent = newFee;
+          feeInput.value = newFee;
+          updateSummaryOnly();
+        };
+
         const resetBtn = box.querySelector('.pb-reset');
         if (resetBtn) {
           resetBtn.onclick = () => {
             selectedItems[idx].fee_percent = null;
-            renderProfitBreakdown();
-            updateSummary();
+            updateSummary(); // updateSummary内でrenderProfitBreakdownを呼ぶので1回だけ
           };
         }
       });
+    }
+
+    // DOM再生成なしで合計欄のみ更新（入力中に呼び出す用）
+    function updateSummaryOnly() {
+      let subtotalCost = 0;
+      let amountBeforeTax = 0;
+      let taxAmount = 0;
+      selectedItems.forEach((it) => {
+        const { cost, billed, itemTax } = calcItemDisplay(it);
+        subtotalCost += cost;
+        amountBeforeTax += billed;
+        taxAmount += itemTax;
+      });
+      subtotalCost = Math.round(subtotalCost);
+      amountBeforeTax = Math.round(amountBeforeTax);
+      taxAmount = Math.round(taxAmount);
+      const feeAmount = amountBeforeTax - subtotalCost;
+      const total = amountBeforeTax + taxAmount;
+      const totalFeeRateOnly = subtotalCost > 0 ? Math.round((feeAmount / subtotalCost) * 1000) / 10 : 0;
+      const el = document.getElementById('calc-summary');
+      if (el) el.innerHTML = `
+        <div class="flex justify-between text-sm mb-1"><span>仕入原価合計</span><span>${yen(subtotalCost)}</span></div>
+        <div class="flex justify-between text-sm mb-1"><span>利益額合計</span><span class="text-green-600 font-bold">${yen(feeAmount)}</span></div>
+        <div class="flex justify-between text-sm mb-1 border-b pb-2"><span>合計利益率</span><span class="text-green-600 font-bold">${totalFeeRateOnly}%</span></div>
+        <div class="flex justify-between text-sm mb-1"><span>小計（税抜）</span><span>${yen(amountBeforeTax)}</span></div>
+        <div class="flex justify-between text-sm mb-1 border-b pb-2"><span>消費税合計 (10%)</span><span>${yen(taxAmount)}</span></div>
+        <div class="flex justify-between font-bold text-xl mt-2"><span>合計金額（税込）</span><span class="text-green-600">${yen(total)}</span></div>
+      `;
     }
 
     function updateSummary() {
@@ -1118,11 +1424,13 @@
       const feeAmount = amountBeforeTax - subtotalCost;
       const total = amountBeforeTax + taxAmount;
 
+      const totalFeeRate = subtotalCost > 0 ? Math.round((feeAmount / subtotalCost) * 1000) / 10 : 0;
       document.getElementById('calc-summary').innerHTML = `
         <div class="flex justify-between text-sm mb-1"><span>仕入原価合計</span><span>${yen(subtotalCost)}</span></div>
         <div class="flex justify-between text-sm mb-1"><span>利益額合計</span><span class="text-green-600 font-bold">${yen(feeAmount)}</span></div>
-        <div class="flex justify-between text-sm mb-1 border-b pb-2"><span>小計（税抜）</span><span>${yen(amountBeforeTax)}</span></div>
-        <div class="flex justify-between text-sm mb-1"><span>消費税合計 (10%)</span><span>${yen(taxAmount)}</span></div>
+        <div class="flex justify-between text-sm mb-1 border-b pb-2"><span>合計利益率</span><span class="text-green-600 font-bold">${totalFeeRate}%</span></div>
+        <div class="flex justify-between text-sm mb-1"><span>小計（税抜）</span><span>${yen(amountBeforeTax)}</span></div>
+        <div class="flex justify-between text-sm mb-1 border-b pb-2"><span>消費税合計 (10%)</span><span>${yen(taxAmount)}</span></div>
         <div class="flex justify-between font-bold text-xl mt-2"><span>合計金額（税込）</span><span class="text-green-600">${yen(total)}</span></div>
       `;
     }
@@ -1133,7 +1441,16 @@
     };
 
     document.getElementById('inv-fee').oninput = updateSummary;
-    document.getElementById('inv-customer').onchange = (e) => loadAvailableItems(e.target.value);
+    document.getElementById('inv-customer').onchange = (e) => {
+      if (e.target.value === '__new__') {
+        e.target.value = '';
+        openInvoiceCustomerModal();
+        return;
+      }
+      loadAvailableItems(e.target.value);
+    };
+    const addCustomerBtn = document.getElementById('inv-add-customer-btn');
+    if (addCustomerBtn) addCustomerBtn.onclick = () => openInvoiceCustomerModal();
 
         // 請求書ドラフトキー
     const invoiceDraftKey = isEdit ? 'invoice_edit_' + existingInvoice.id : 'invoice_new_' + (presetCustomerId || 'x');
@@ -1160,11 +1477,14 @@
       loadAvailableItems(invDraft.customer_id);
     } else if (presetCustomerId) {
       loadAvailableItems(presetCustomerId);
+    } else {
+      // 請求先未選択時は案内メッセージを表示
+      loadAvailableItems(null);
     }
-    document.getElementById('inv-save-btn').onclick = async () => {
+    async function saveInvoice(status) {
       const customerId = document.getElementById('inv-customer').value;
-      if (!customerId) return showToast('お客さんを選択してください', true);
-      if (selectedItems.length === 0) return showToast('明細を1件以上追加してください', true);
+      if (!customerId) return showToast('請求先（お客様）を選択してください', true);
+      if (selectedItems.length === 0) return showToast('明細を１件以上追加してください', true);
 
       const payload = {
         customer_id: Number(customerId),
@@ -1172,6 +1492,7 @@
         due_date: document.getElementById('inv-due-date').value,
         fee_percent: Number(document.getElementById('inv-fee').value) || 0,
         memo: document.getElementById('inv-memo').value,
+        status: status,
         items: selectedItems.map((it) => ({
           purchase_item_id: it.purchase_item_id || null,
           name: it.name,
@@ -1193,8 +1514,10 @@
         clearDraft(invoiceDraftKey);
         location.hash = `#/invoice/${result.id}`;
       }
-      showToast('保存しました');
-    };
+      showToast(status === 'draft' ? '下書きとして保存しました' : '発行しました');
+    }
+    document.getElementById('inv-draft-btn').onclick = () => saveInvoice('draft');
+    document.getElementById('inv-issue-btn').onclick = () => saveInvoice('issued');
   }
 
   // ==================================================
@@ -1206,7 +1529,7 @@
 
     el.innerHTML = `
       <div class="flex justify-between items-center mb-4 no-print">
-        <a href="#/customers/${invoice.customer_id}" class="text-blue-600 text-sm"><i class="fas fa-chevron-left mr-1"></i>お客さんへ戻る</a>
+        <a href="#/customers/${invoice.customer_id}" class="text-blue-600 text-sm"><i class="fas fa-chevron-left mr-1"></i>請求先（お客様）へ戻る</a>
         <div class="flex gap-2">
           <a href="#/invoice/${invoice.id}/edit" class="btn-secondary rounded-lg px-3 py-2 text-sm"><i class="fas fa-pen mr-1"></i>編集</a>
           <button id="print-btn" class="btn-primary rounded-lg px-3 py-2 text-sm"><i class="fas fa-print mr-1"></i>印刷/PDF</button>
@@ -1418,6 +1741,8 @@
       <button id="logout-btn" class="w-full btn-danger rounded-lg py-3 font-bold big-tap"><i class="fas fa-sign-out-alt mr-1"></i>ログアウト</button>
     `;
 
+    document.getElementById('s-postal').addEventListener('input', () => lookupPostalCode('s-postal', 's-address'));
+
     document.getElementById('settings-save-btn').onclick = async () => {
       await api('put', '/api/settings', {
         company_name: document.getElementById('s-company').value,
@@ -1453,4 +1778,20 @@
       render();
     };
   });
+  // ---------- 画像拡大モーダル ----------
+  window.openImageModal = function(src) {
+    let modal = document.getElementById('img-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'img-modal';
+      modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:16px;';
+      modal.innerHTML = '<img id="img-modal-img" style="max-width:100%;max-height:90vh;object-fit:contain;border-radius:8px;box-shadow:0 4px 32px #0008;" /><button id="img-modal-close" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:28px;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;">&times;</button>';
+      document.body.appendChild(modal);
+      modal.addEventListener('click', function(e) {
+        if (e.target === modal || e.target.id === 'img-modal-close') modal.style.display = 'none';
+      });
+    }
+    document.getElementById('img-modal-img').src = src;
+    modal.style.display = 'flex';
+  };
 })();
