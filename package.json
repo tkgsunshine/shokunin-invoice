@@ -3,8 +3,9 @@
   "type": "module",
   "scripts": {
     "dev": "node --import tsx/esm src/server.ts",
-    "build": "vite build",
-    "start": "node --import tsx/esm src/server.ts"
+    "build": "node build.mjs",
+    "start": "node --import tsx/esm src/server.ts",
+    "vercel-build": "node build.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.8",
@@ -19,6 +20,7 @@
     "@hono/vite-build": "^1.2.0",
     "@hono/vite-dev-server": "^0.25.2",
     "@types/node": "^26.1.1",
+    "esbuild": "^0.25.5",
     "tsx": "^4.23.0",
     "vite": "^6.3.5",
     "wrangler": "^4.4.0"

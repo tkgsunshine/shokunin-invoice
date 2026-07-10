@@ -38,3 +38,6 @@ lerna-debug.log*
 # misc
 .DS_Store
 .dev.vars
+.vercel
+.env*
+api/index.js
