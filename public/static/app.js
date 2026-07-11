@@ -1794,7 +1794,7 @@
         <h3 class="font-bold mb-3">請求書のデフォルト設定</h3>
         <div class="grid grid-cols-2 gap-3 mb-3">
           <div>
-            <label class="text-sm text-gray-500">デフォルト手数料 (%)</label>
+            <label class="text-sm text-gray-500">デフォルト利益率 (%)</label>
             <input id="s-fee" type="number" step="any" class="w-full border rounded-lg p-3 big-tap" value="${settings.default_fee_percent}" />
           </div>
           <div>
