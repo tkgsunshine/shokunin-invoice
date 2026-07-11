@@ -1088,7 +1088,7 @@
         <div class="flex-1 h-0.5 bg-gray-200 mx-1"></div>
         <div class="flex flex-col items-center gap-1">
           <div class="w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-bold flex items-center justify-center shadow">3</div>
-          <span class="text-xs text-blue-600 font-bold">売価設定</span>
+          <span class="text-xs text-blue-600 font-bold">請求額設定</span>
         </div>
       </div>
 
@@ -1165,7 +1165,7 @@
       <div class="card p-4 mb-4 border-l-4 border-blue-500">
         <div class="flex items-center gap-2 mb-3">
           <span class="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">STEP 3</span>
-          <span class="font-bold text-base">売価の設定</span>
+          <span class="font-bold text-base">請求額の設定</span>
         </div>
         <div id="profit-breakdown" class="space-y-2"></div>
       </div>
@@ -1325,7 +1325,7 @@
                 <span class="text-xs text-gray-500 shrink-0">%</span>
               </div>
               <div class="flex items-center gap-1">
-                <label class="text-xs text-gray-500 shrink-0">売価</label>
+                <label class="text-xs text-gray-500 shrink-0">請求額(税抜)</label>
                 <input class="pb-billed flex-1 min-w-0 border rounded-lg px-2 py-1 text-sm text-right" type="number" step="any" value="${billed}" />
                 <span class="text-xs text-gray-500 shrink-0">円</span>
               </div>
@@ -1644,8 +1644,8 @@
       <div class="mt-4 no-print rounded-xl border-2 border-blue-200 bg-blue-50 overflow-hidden">
         <div class="bg-blue-600 px-4 py-2 flex items-center gap-2">
           <i class="fas fa-chart-line text-white text-sm"></i>
-          <span class="font-bold text-sm text-white">原価・利益サマリー</span>
-          <span class="ml-1 text-blue-200 text-xs font-normal">（社内参考・請求書には印字されません）</span>
+          <span class="font-bold text-sm text-white">仕入れ原価と利益のまとめ</span>
+          <span class="ml-1 text-blue-200 text-xs font-normal">（請求書には印字されません）</span>
         </div>
         <div class="p-4">
         <table class="w-full text-xs border-collapse">
