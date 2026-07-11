@@ -1252,7 +1252,10 @@
             <input class="sel-name flex-1 min-w-[120px] border rounded-lg p-2 text-sm" placeholder="品目名" value="${esc(it.name)}" />
             <input class="sel-qty w-14 border rounded-lg p-2 text-sm" type="number" step="any" placeholder="数量" value="${it.quantity ?? 1}" />
             <input class="sel-unit w-16 border rounded-lg p-2 text-sm" type="text" placeholder="単位" value="${esc(it.unit || '')}" />
-            <input class="sel-cost w-24 border rounded-lg p-2 text-sm" type="number" step="any" placeholder="原価" value="${it.cost_amount}" />
+            <div class="flex items-center border rounded-lg overflow-hidden text-sm">
+              <span class="px-2 bg-gray-100 text-gray-500 border-r select-none">&yen;</span>
+              <input class="sel-cost w-20 p-2 text-sm outline-none" type="number" step="any" placeholder="原価" value="${it.cost_amount}" />
+            </div>
             <button class="sel-del text-red-500 p-2"><i class="fas fa-times"></i></button>
           </div>`
           )
