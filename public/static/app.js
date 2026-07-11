@@ -1621,38 +1621,44 @@
         ${invoice.memo ? `<div class="text-sm border-t pt-4"><div class="font-bold mb-1">備考</div><div>${esc(invoice.memo)}</div></div>` : ''}
       </div>
 
-      <div class="card p-4 mt-4 no-print">
-        <h3 class="font-bold mb-3 text-sm text-gray-600"><i class="fas fa-chart-line mr-1"></i>項目ごとの原価・利益（社内参考・請求書には印字されません）</h3>
+      <div class="mt-4 no-print rounded-xl border-2 border-blue-200 bg-blue-50 overflow-hidden">
+        <div class="bg-blue-600 px-4 py-2 flex items-center gap-2">
+          <i class="fas fa-chart-line text-white text-sm"></i>
+          <span class="font-bold text-sm text-white">原価・利益サマリー</span>
+          <span class="ml-1 text-blue-200 text-xs font-normal">（社内参考・請求書には印字されません）</span>
+        </div>
+        <div class="p-4">
         <table class="w-full text-xs border-collapse">
           <thead>
-            <tr class="border-b text-gray-500">
-              <th class="text-left py-1">品目</th>
-              <th class="text-right py-1">仕入原価</th>
-              <th class="text-right py-1">利益率</th>
-              <th class="text-right py-1">利益額</th>
-              <th class="text-right py-1">消費税</th>
+            <tr class="bg-blue-100 rounded">
+              <th class="text-left py-2 px-2 text-blue-800 font-bold rounded-l">品目</th>
+              <th class="text-right py-2 px-2 text-blue-800 font-bold">仕入原価</th>
+              <th class="text-right py-2 px-2 text-blue-800 font-bold">利益率</th>
+              <th class="text-right py-2 px-2 text-blue-800 font-bold">利益額</th>
+              <th class="text-right py-2 px-2 text-blue-800 font-bold rounded-r">消費税</th>
             </tr>
           </thead>
           <tbody>
             ${items.map((it) => `
-              <tr class="border-b">
-                <td class="py-1">${esc(it.name)}</td>
-                <td class="text-right py-1">${yen(it.cost_amount)}</td>
-                <td class="text-right py-1">${Number(it.fee_percent).toFixed(1)}%</td>
-                <td class="text-right py-1 text-green-600 font-bold">${yen(it.profit_amount)}</td>
-                <td class="text-right py-1">${yen(it.tax_amount)}</td>
+              <tr class="border-b border-blue-100 hover:bg-blue-50">
+                <td class="py-2 px-2 text-gray-700">${esc(it.name)}</td>
+                <td class="text-right py-2 px-2 text-gray-600">${yen(it.cost_amount)}</td>
+                <td class="text-right py-2 px-2 text-gray-600">${Number(it.fee_percent).toFixed(1)}%</td>
+                <td class="text-right py-2 px-2 text-emerald-600 font-bold">${yen(it.profit_amount)}</td>
+                <td class="text-right py-2 px-2 text-gray-600">${yen(it.tax_amount)}</td>
               </tr>`).join('')}
           </tbody>
           <tfoot>
-            <tr class="font-bold border-t-2">
-              <td class="py-1">合計</td>
-              <td class="text-right py-1">${yen(invoice.subtotal_cost)}</td>
-              <td class="text-right py-1"></td>
-              <td class="text-right py-1 text-green-600">${yen(invoice.fee_amount)}</td>
-              <td class="text-right py-1">${yen(invoice.tax_amount)}</td>
+            <tr class="bg-blue-100 font-bold border-t-2 border-blue-300">
+              <td class="py-2 px-2 text-blue-900">合計</td>
+              <td class="text-right py-2 px-2 text-blue-900">${yen(invoice.subtotal_cost)}</td>
+              <td class="text-right py-2 px-2"></td>
+              <td class="text-right py-2 px-2 text-emerald-600 text-sm">${yen(invoice.fee_amount)}</td>
+              <td class="text-right py-2 px-2 text-blue-900">${yen(invoice.tax_amount)}</td>
             </tr>
           </tfoot>
         </table>
+        </div>
       </div>
     `;
 
