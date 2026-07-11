@@ -2642,17 +2642,28 @@ var auth_default = auth;
 // src/routes/settings.ts
 var settingsRoute = new Hono2();
 settingsRoute.get("/", async (c) => {
-  const s = await c.env.DB.prepare(
-    `SELECT company_name, owner_name, postal_code, address, phone, email,
-            bank_name, bank_branch, bank_branch_number, bank_account_type, bank_account_number, bank_account_holder,
-            default_fee_percent, default_tax_rate, invoice_prefix
-     FROM settings WHERE id = 1`
-  ).first();
+  let s = null;
+  try {
+    s = await c.env.DB.prepare(
+      `SELECT company_name, owner_name, postal_code, address, phone, email,
+              bank_name, bank_branch, bank_branch_number, bank_account_type, bank_account_number, bank_account_holder,
+              default_fee_percent, default_tax_rate, invoice_prefix
+       FROM settings WHERE id = 1`
+    ).first();
+  } catch (_e) {
+    s = await c.env.DB.prepare(
+      `SELECT company_name, owner_name, postal_code, address, phone, email,
+              bank_name, bank_branch, bank_account_type, bank_account_number, bank_account_holder,
+              default_fee_percent, default_tax_rate, invoice_prefix
+       FROM settings WHERE id = 1`
+    ).first();
+    if (s) s = { ...s, bank_branch_number: "" };
+  }
   return c.json(s);
 });
 settingsRoute.put("/", async (c) => {
   const body = await c.req.json();
-  const fields = [
+  const allFields = [
     "company_name",
     "owner_name",
     "postal_code",
@@ -2669,9 +2680,16 @@ settingsRoute.put("/", async (c) => {
     "default_tax_rate",
     "invoice_prefix"
   ];
-  const setClauses = fields.map((f) => `${f} = ?`).join(", ");
-  const values = fields.map((f) => body[f] ?? (f.includes("percent") || f.includes("rate") ? 0 : ""));
-  await c.env.DB.prepare(`UPDATE settings SET ${setClauses}, updated_at = CURRENT_TIMESTAMP WHERE id = 1`).bind(...values).run();
+  const tryUpdate = async (fields) => {
+    const setClauses = fields.map((f) => `${f} = ?`).join(", ");
+    const values = fields.map((f) => body[f] ?? (f.includes("percent") || f.includes("rate") ? 0 : ""));
+    await c.env.DB.prepare(`UPDATE settings SET ${setClauses}, updated_at = CURRENT_TIMESTAMP WHERE id = 1`).bind(...values).run();
+  };
+  try {
+    await tryUpdate(allFields);
+  } catch (_e) {
+    await tryUpdate(allFields.filter((f) => f !== "bank_branch_number"));
+  }
   return c.json({ success: true });
 });
 var settings_default = settingsRoute;
