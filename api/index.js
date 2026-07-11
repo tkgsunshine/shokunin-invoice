@@ -3072,7 +3072,29 @@ invoices.get("/:id", async (c) => {
     };
   });
   const settings = await c.env.DB.prepare("SELECT * FROM settings WHERE id = 1").first();
-  return c.json({ invoice, items: itemsWithCalc, settings });
+  const status = invoice.status;
+  const frozenStatuses = ["issued", "sent", "paid"];
+  const useSnapshot = frozenStatuses.includes(status) && invoice.issuer_company_name;
+  const effectiveSettings = useSnapshot ? {
+    company_name: invoice.issuer_company_name,
+    owner_name: invoice.issuer_owner_name,
+    postal_code: invoice.issuer_postal_code,
+    address: invoice.issuer_address,
+    phone: invoice.issuer_phone,
+    email: invoice.issuer_email,
+    bank_name: invoice.issuer_bank_name,
+    bank_branch: invoice.issuer_bank_branch,
+    bank_branch_number: invoice.issuer_bank_branch_number,
+    bank_account_type: invoice.issuer_bank_account_type,
+    bank_account_number: invoice.issuer_bank_account_number,
+    bank_account_holder: invoice.issuer_bank_account_holder,
+    // settingsからのみ取得する項目
+    default_fee_percent: settings?.default_fee_percent,
+    default_tax_rate: settings?.default_tax_rate,
+    invoice_prefix: settings?.invoice_prefix,
+    next_invoice_seq: settings?.next_invoice_seq
+  } : settings;
+  return c.json({ invoice, items: itemsWithCalc, settings: effectiveSettings });
 });
 invoices.post("/", async (c) => {
   const body = await c.req.json();
@@ -3088,10 +3110,14 @@ invoices.post("/", async (c) => {
     body.items,
     body.fee_percent
   );
+  const issuerSettings = await c.env.DB.prepare("SELECT * FROM settings WHERE id = 1").first().catch(() => null);
   const result = await c.env.DB.prepare(
     `INSERT INTO invoices (customer_id, invoice_number, issue_date, due_date, fee_percent, tax_rate,
-       subtotal_cost, fee_amount, amount_before_tax, tax_amount, total_amount, memo, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       subtotal_cost, fee_amount, amount_before_tax, tax_amount, total_amount, memo, status,
+       issuer_company_name, issuer_owner_name, issuer_postal_code, issuer_address, issuer_phone, issuer_email,
+       issuer_bank_name, issuer_bank_branch, issuer_bank_branch_number, issuer_bank_account_type,
+       issuer_bank_account_number, issuer_bank_account_holder)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     body.customer_id,
     invoiceNumber,
@@ -3105,7 +3131,19 @@ invoices.post("/", async (c) => {
     taxAmount,
     totalAmount,
     body.memo ?? "",
-    body.status ?? "draft"
+    body.status ?? "draft",
+    issuerSettings?.company_name ?? "",
+    issuerSettings?.owner_name ?? "",
+    issuerSettings?.postal_code ?? "",
+    issuerSettings?.address ?? "",
+    issuerSettings?.phone ?? "",
+    issuerSettings?.email ?? "",
+    issuerSettings?.bank_name ?? "",
+    issuerSettings?.bank_branch ?? "",
+    issuerSettings?.bank_branch_number ?? "",
+    issuerSettings?.bank_account_type ?? "",
+    issuerSettings?.bank_account_number ?? "",
+    issuerSettings?.bank_account_holder ?? ""
   ).run();
   const invoiceId = result.meta.last_row_id;
   for (let i = 0; i < computed.length; i++) {
