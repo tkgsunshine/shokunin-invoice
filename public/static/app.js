@@ -1307,15 +1307,15 @@
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500">請求額(税抜)</span>
-                <span class="font-bold text-blue-700">${yen(billed)}</span>
+                <span class="pb-billed-label font-bold text-blue-700">${yen(billed)}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500">利益額</span>
-                <span class="font-bold text-green-600">${yen(profit)}</span>
+                <span class="pb-profit-label font-bold text-green-600">${yen(profit)}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500">消費税(10%)</span>
-                <span class="font-bold text-gray-600">${yen(itemTax)}</span>
+                <span class="pb-tax-label font-bold text-gray-600">${yen(itemTax)}</span>
               </div>
             </div>
             <div class="grid grid-cols-2 gap-2 bg-gray-50 rounded-lg px-3 py-2">
@@ -1352,8 +1352,16 @@
           selectedItems[idx].fee_percent = fee;
           const cost = Number(selectedItems[idx].cost_amount) || 0;
           const newBilled = Math.round(cost * (1 + fee / 100));
+          const newProfit = newBilled - cost;
+          const newTax = Math.round(newBilled * (INVOICE_TAX_RATE / 100));
           billedInput.value = newBilled;
           selectedItems[idx].unit_price = newBilled;
+          const billedLabel = box.querySelector('.pb-billed-label');
+          const profitLabel = box.querySelector('.pb-profit-label');
+          const taxLabel = box.querySelector('.pb-tax-label');
+          if (billedLabel) billedLabel.textContent = yen(newBilled);
+          if (profitLabel) profitLabel.textContent = yen(newProfit);
+          if (taxLabel) taxLabel.textContent = yen(newTax);
           updateSummaryOnly();
         };
 
@@ -1367,9 +1375,17 @@
           const billedVal = Number(v);
           const cost = Number(selectedItems[idx].cost_amount) || 0;
           const newFee = cost > 0 ? Math.round((billedVal / cost - 1) * 100 * 10) / 10 : 0;
+          const newProfit2 = billedVal - cost;
+          const newTax2 = Math.round(billedVal * (INVOICE_TAX_RATE / 100));
           selectedItems[idx].fee_percent = newFee;
           selectedItems[idx].unit_price = billedVal;
           feeInput.value = newFee;
+          const billedLabel2 = box.querySelector('.pb-billed-label');
+          const profitLabel2 = box.querySelector('.pb-profit-label');
+          const taxLabel2 = box.querySelector('.pb-tax-label');
+          if (billedLabel2) billedLabel2.textContent = yen(billedVal);
+          if (profitLabel2) profitLabel2.textContent = yen(newProfit2);
+          if (taxLabel2) taxLabel2.textContent = yen(newTax2);
           updateSummaryOnly();
         };
 
