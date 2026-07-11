@@ -14,6 +14,28 @@
     return '¥' + n.toLocaleString('ja-JP');
   }
 
+  // カンマ区切り表示ヘルパー（入力フィールド用）
+  function fmtNum(n) {
+    const num = Number(String(n).replace(/,/g, '')) || 0;
+    return num.toLocaleString('ja-JP');
+  }
+  function parseNum(s) {
+    return Number(String(s).replace(/,/g, '')) || 0;
+  }
+  function attachNumFormat(input, onValueChange) {
+    // 初期表示をカンマ付きに
+    const raw = parseNum(input.value);
+    if (raw !== 0) input.value = fmtNum(raw);
+    input.addEventListener('focus', () => {
+      input.value = String(parseNum(input.value));
+    });
+    input.addEventListener('blur', () => {
+      const v = parseNum(input.value);
+      input.value = fmtNum(v);
+      if (onValueChange) onValueChange(v);
+    });
+  }
+
   function esc(s) {
     if (s === null || s === undefined) return '';
     return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1254,7 +1276,7 @@
             <input class="sel-unit w-16 border rounded-lg p-2 text-sm" type="text" placeholder="単位" value="${esc(it.unit || '')}" />
             <div class="flex items-center border rounded-lg overflow-hidden text-sm">
               <span class="px-2 bg-gray-100 text-gray-500 border-r select-none">&yen;</span>
-              <input class="sel-cost w-20 p-2 text-sm outline-none" type="number" step="any" placeholder="原価" value="${it.cost_amount}" />
+              <input class="sel-cost w-20 p-2 text-sm outline-none text-right" type="text" inputmode="numeric" placeholder="原価" value="${it.cost_amount ? fmtNum(it.cost_amount) : ''}" />
             </div>
             <button class="sel-del text-red-500 p-2"><i class="fas fa-times"></i></button>
           </div>`
@@ -1266,8 +1288,13 @@
           row.querySelector('.sel-name').oninput = (e) => (selectedItems[idx].name = e.target.value);
           row.querySelector('.sel-qty').oninput = (e) => (selectedItems[idx].quantity = Number(e.target.value) || 0);
           row.querySelector('.sel-unit').oninput = (e) => (selectedItems[idx].unit = e.target.value);
-          row.querySelector('.sel-cost').oninput = (e) => {
-            selectedItems[idx].cost_amount = Number(e.target.value) || 0;
+          const costInput = row.querySelector('.sel-cost');
+          attachNumFormat(costInput, (v) => {
+            selectedItems[idx].cost_amount = v;
+            updateSummary();
+          });
+          costInput.oninput = (e) => {
+            selectedItems[idx].cost_amount = parseNum(e.target.value);
             updateSummary();
           };
           row.querySelector('.sel-del').onclick = () => {
@@ -1321,12 +1348,12 @@
             <div class="grid grid-cols-2 gap-2 bg-gray-50 rounded-lg px-3 py-2">
               <div class="flex items-center gap-1">
                 <label class="text-xs text-gray-500 shrink-0">利益率</label>
-                <input class="pb-fee flex-1 min-w-0 border rounded-lg px-2 py-1 text-sm text-right" type="number" step="any" value="${feePercent}" />
+                <input class="pb-fee flex-1 min-w-0 border rounded-lg px-2 py-1 text-sm text-right" type="text" inputmode="decimal" value="${feePercent}" />
                 <span class="text-xs text-gray-500 shrink-0">%</span>
               </div>
               <div class="flex items-center gap-1">
                 <label class="text-xs text-gray-500 shrink-0">請求額(税抜)</label>
-                <input class="pb-billed flex-1 min-w-0 border rounded-lg px-2 py-1 text-sm text-right" type="number" step="any" value="${billed}" />
+                <input class="pb-billed flex-1 min-w-0 border rounded-lg px-2 py-1 text-sm text-right" type="text" inputmode="numeric" value="${fmtNum(billed)}" />
                 <span class="text-xs text-gray-500 shrink-0">円</span>
               </div>
             </div>
@@ -1339,10 +1366,10 @@
         const feeInput = box.querySelector('.pb-fee');
         const billedInput = box.querySelector('.pb-billed');
 
-        // 利益率変更 → 売価自動計算（DOM再生成なし）
+        // 利益率変更 → 請求額自動計算（DOM再生成なし）
         feeInput.oninput = (e) => {
           const v = e.target.value;
-          // 入力中（末尾が「.」「-」空など）は途中なので売価を更新しない
+          // 入力中（末尾が「.」「-」空など）は途中なので請求額を更新しない
           if (v === '' || v === '-' || v.endsWith('.')) {
             selectedItems[idx].fee_percent = v === '' ? null : (isNaN(Number(v)) ? null : Number(v));
             updateSummaryOnly();
@@ -1354,7 +1381,7 @@
           const newBilled = Math.round(cost * (1 + fee / 100));
           const newProfit = newBilled - cost;
           const newTax = Math.round(newBilled * (INVOICE_TAX_RATE / 100));
-          billedInput.value = newBilled;
+          billedInput.value = fmtNum(newBilled);
           selectedItems[idx].unit_price = newBilled;
           const billedLabel = box.querySelector('.pb-billed-label');
           const profitLabel = box.querySelector('.pb-profit-label');
@@ -1365,14 +1392,22 @@
           updateSummaryOnly();
         };
 
-        // 売価手打ち → 利益率自動計算（DOM再生成なし）
+        // 請求額手打ち → 利益率自動計算（DOM再生成なし）
+        billedInput.addEventListener('focus', () => {
+          billedInput.value = String(parseNum(billedInput.value));
+        });
+        billedInput.addEventListener('blur', () => {
+          const v = parseNum(billedInput.value);
+          billedInput.value = fmtNum(v);
+        });
         billedInput.oninput = (e) => {
           const v = e.target.value;
-          if (v === '' || v === '-' || v.endsWith('.')) {
+          const rawV = v.replace(/,/g, '');
+          if (rawV === '' || rawV === '-' || rawV.endsWith('.')) {
             updateSummaryOnly();
             return;
           }
-          const billedVal = Number(v);
+          const billedVal = Number(rawV);
           const cost = Number(selectedItems[idx].cost_amount) || 0;
           const newFee = cost > 0 ? Math.round((billedVal / cost - 1) * 100 * 10) / 10 : 0;
           const newProfit2 = billedVal - cost;
