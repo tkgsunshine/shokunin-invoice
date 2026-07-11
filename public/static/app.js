@@ -405,15 +405,15 @@
         <div class="card p-6 w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
           <h3 class="font-bold text-lg mb-4">${isEdit ? '請求先（お客様）編集' : '請求先（お客様）追加'}</h3>
           <label class="text-sm text-gray-500">お名前・会社名 *</label>
-          <input id="cust-name" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(customer?.name || '')}" />
+          <input id="cust-name" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(customer?.name || '')}" placeholder="例：株式会社○○ / 山田太郎" />
           <label class="text-sm text-gray-500">郵便番号</label>
-          <input id="cust-postal" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(customer?.postal_code || '')}" />
+          <input id="cust-postal" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(customer?.postal_code || '')}" placeholder="例：1050011" />
           <label class="text-sm text-gray-500">住所</label>
-          <input id="cust-address" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(customer?.address || '')}" />
+          <input id="cust-address" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(customer?.address || '')}" placeholder="例：東京都港区芝公園1-2-3" />
           <label class="text-sm text-gray-500">電話番号</label>
-          <input id="cust-phone" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(customer?.phone || '')}" />
+          <input id="cust-phone" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(customer?.phone || '')}" placeholder="例：0312345678" />
           <label class="text-sm text-gray-500">メモ</label>
-          <textarea id="cust-memo" class="w-full border rounded-lg p-3 mb-4">${esc(customer?.memo || '')}</textarea>
+          <textarea id="cust-memo" class="w-full border rounded-lg p-3 mb-4" placeholder="例：担当者：田中様">${esc(customer?.memo || '')}</textarea>
           <div class="flex gap-3">
             <button id="cust-cancel" class="flex-1 btn-secondary rounded-lg py-3 font-bold big-tap">キャンセル</button>
             <button id="cust-save" class="flex-1 btn-primary rounded-lg py-3 font-bold big-tap">保存</button>
@@ -1746,31 +1746,31 @@
       <div class="card p-5 mb-4">
         <h3 class="font-bold mb-3">自社情報（請求書に印字されます）</h3>
         <label class="text-sm text-gray-500">屋号・会社名</label>
-        <input id="s-company" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.company_name)}" />
+        <input id="s-company" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.company_name)}" placeholder="例：株式会社○○ / ○○工務店" />
         <label class="text-sm text-gray-500">お名前</label>
-        <input id="s-owner" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.owner_name)}" />
+        <input id="s-owner" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.owner_name)}" placeholder="例：山田太郎" />
         <label class="text-sm text-gray-500">郵便番号</label>
-        <input id="s-postal" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.postal_code)}" />
+        <input id="s-postal" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.postal_code)}" placeholder="例：1050011（入力で住所自動補完）" />
         <label class="text-sm text-gray-500">住所</label>
-        <input id="s-address" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.address)}" />
+        <input id="s-address" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.address)}" placeholder="例：東京都港区芝公園1-2-3" />
         <label class="text-sm text-gray-500">電話番号</label>
-        <input id="s-phone" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.phone)}" />
+        <input id="s-phone" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.phone)}" placeholder="例：0312345678" />
         <label class="text-sm text-gray-500">メールアドレス</label>
-        <input id="s-email" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.email)}" />
+        <input id="s-email" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.email)}" placeholder="例：info@example.com" />
       </div>
 
       <div class="card p-5 mb-4">
         <h3 class="font-bold mb-3">振込先口座</h3>
         <label class="text-sm text-gray-500">銀行名</label>
-        <input id="s-bank-name" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.bank_name)}" />
+        <input id="s-bank-name" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.bank_name)}" placeholder="例：三井住友銀行" />
         <div class="grid grid-cols-2 gap-3 mb-3">
           <div>
             <label class="text-sm text-gray-500">支店名</label>
-            <input id="s-bank-branch" class="w-full border rounded-lg p-3 big-tap" value="${esc(settings.bank_branch)}" />
+            <input id="s-bank-branch" class="w-full border rounded-lg p-3 big-tap" value="${esc(settings.bank_branch)}" placeholder="例：渋谷支店" />
           </div>
           <div>
             <label class="text-sm text-gray-500">支店番号</label>
-            <input id="s-bank-branch-number" class="w-full border rounded-lg p-3 big-tap" inputmode="numeric" value="${esc(settings.bank_branch_number || '')}" />
+            <input id="s-bank-branch-number" class="w-full border rounded-lg p-3 big-tap" inputmode="numeric" value="${esc(settings.bank_branch_number || '')}" placeholder="例：123" />
           </div>
         </div>
         <div class="grid grid-cols-2 gap-3 mb-3">
@@ -1783,11 +1783,11 @@
           </div>
           <div>
             <label class="text-sm text-gray-500">口座番号</label>
-            <input id="s-bank-number" class="w-full border rounded-lg p-3 big-tap" value="${esc(settings.bank_account_number)}" />
+            <input id="s-bank-number" class="w-full border rounded-lg p-3 big-tap" value="${esc(settings.bank_account_number)}" placeholder="例：1234567" />
           </div>
         </div>
         <label class="text-sm text-gray-500">口座名義</label>
-        <input id="s-bank-holder" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.bank_account_holder)}" />
+        <input id="s-bank-holder" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.bank_account_holder)}" placeholder="例：ヤマダタロウ" />
       </div>
 
       <div class="card p-5 mb-4">
@@ -1803,7 +1803,7 @@
           </div>
         </div>
         <label class="text-sm text-gray-500">請求書番号のプレフィックス</label>
-        <input id="s-prefix" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.invoice_prefix)}" />
+        <input id="s-prefix" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.invoice_prefix)}" placeholder="例：INV-（空白の場合はINV-）" />
       </div>
 
       <button id="settings-save-btn" class="w-full btn-primary rounded-lg py-3 font-bold big-tap mb-4">保存する</button>
