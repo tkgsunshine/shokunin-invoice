@@ -1351,7 +1351,9 @@
           const fee = Number(v);
           selectedItems[idx].fee_percent = fee;
           const cost = Number(selectedItems[idx].cost_amount) || 0;
-          billedInput.value = Math.round(cost * (1 + fee / 100));
+          const newBilled = Math.round(cost * (1 + fee / 100));
+          billedInput.value = newBilled;
+          selectedItems[idx].unit_price = newBilled;
           updateSummaryOnly();
         };
 
@@ -1366,6 +1368,7 @@
           const cost = Number(selectedItems[idx].cost_amount) || 0;
           const newFee = cost > 0 ? Math.round((billedVal / cost - 1) * 100 * 10) / 10 : 0;
           selectedItems[idx].fee_percent = newFee;
+          selectedItems[idx].unit_price = billedVal;
           feeInput.value = newFee;
           updateSummaryOnly();
         };
