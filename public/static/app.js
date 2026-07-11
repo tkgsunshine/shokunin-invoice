@@ -542,15 +542,13 @@
       <div class="space-y-2">
         ${purchases.length === 0 ? '<div class="text-gray-400 text-sm py-2">まだありません</div>' : ''}
         ${purchases.map((p) => `
-          <a href="#/purchase/${p.id}" class="card p-3 flex justify-between items-center hover:shadow-md">
-            <div class="flex items-center gap-3">
-              ${mediaThumbHtml(p, 'w-12 h-12')}
-              <div>
-                <div class="font-bold">${esc(p.vendor_name || '(不明)')}</div>
-                <div class="text-xs text-gray-500">${esc(p.purchase_date || '')} ・ ${esc(p.document_type || '')}</div>
-              </div>
+          <a href="#/purchase/${p.id}" class="card p-3 flex items-center gap-3 hover:shadow-md">
+            ${mediaThumbHtml(p, 'w-12 h-12')}
+            <div class="flex-1 min-w-0">
+              <div class="font-bold truncate">${esc(p.vendor_name || '(不明)')}</div>
+              <div class="text-xs text-gray-500 truncate">${esc(p.purchase_date || '')} ・ ${esc(p.document_type || '')}</div>
             </div>
-            <div class="font-bold">${yen(p.total_amount)}</div>
+            <div class="font-bold shrink-0 ml-2">${yen(p.total_amount)}</div>
           </a>`).join('')}
       </div>
       <div id="customer-modal-root"></div>`;
