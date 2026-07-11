@@ -1428,6 +1428,7 @@
         if (resetBtn) {
           resetBtn.onclick = () => {
             selectedItems[idx].fee_percent = null;
+            selectedItems[idx].unit_price = null; // unit_priceもリセットして基本利益率で再計算させる
             updateSummary(); // updateSummary内でrenderProfitBreakdownを呼ぶので1回だけ
           };
         }
@@ -1548,15 +1549,18 @@
         fee_percent: Number(document.getElementById('inv-fee').value) || 0,
         memo: document.getElementById('inv-memo').value,
         status: status,
-        items: selectedItems.map((it) => ({
-          purchase_item_id: it.purchase_item_id || null,
-          name: it.name,
-          quantity: it.quantity || 1,
-          unit: it.unit || '',
-          unit_price: it.unit_price || it.cost_amount || 0,
-          cost_amount: Number(it.cost_amount) || 0,
-          fee_percent: it.fee_percent === null || it.fee_percent === undefined || it.fee_percent === '' ? null : Number(it.fee_percent),
-        })),
+        items: selectedItems.map((it) => {
+          const { billed } = calcItemDisplay(it);
+          return {
+            purchase_item_id: it.purchase_item_id || null,
+            name: it.name,
+            quantity: it.quantity || 1,
+            unit: it.unit || '',
+            unit_price: (it.unit_price != null && it.unit_price !== 0) ? it.unit_price : billed,
+            cost_amount: Number(it.cost_amount) || 0,
+            fee_percent: it.fee_percent === null || it.fee_percent === undefined || it.fee_percent === '' ? null : Number(it.fee_percent),
+          };
+        }),
       };
 
       let result;
@@ -1613,7 +1617,7 @@
 
         <div class="flex justify-between mb-8">
           <div>
-            <div class="text-lg font-bold border-b-2 border-gray-800 pb-1 mb-2">${esc(invoice.customer_name)} 様</div>
+            <div class="text-lg font-bold border-b-2 border-gray-800 pb-1 mb-2">${esc(invoice.customer_name)} 御中</div>
             <div class="text-sm text-gray-600">${esc(invoice.customer_postal_code || '')}</div>
             <div class="text-sm text-gray-600">${esc(invoice.customer_address || '')}</div>
             <div class="text-sm text-gray-600">${esc(invoice.customer_phone || '')}</div>
@@ -1669,7 +1673,7 @@
         ${settings.bank_name ? `
         <div class="text-sm border-t pt-4 mb-4">
           <div class="font-bold mb-1">お振込先</div>
-          <div>${esc(settings.bank_name)} ${esc(settings.bank_branch)} ${esc(settings.bank_account_type)} ${esc(settings.bank_account_number)}</div>
+          <div>${esc(settings.bank_name)}${settings.bank_branch ? ' ' + esc(settings.bank_branch) : ''}${settings.bank_branch_number ? ' ' + esc(settings.bank_branch_number) : ''} ${esc(settings.bank_account_type)} ${esc(settings.bank_account_number)}</div>
           <div>${esc(settings.bank_account_holder)}</div>
         </div>` : ''}
 
@@ -1759,12 +1763,23 @@
         <h3 class="font-bold mb-3">振込先口座</h3>
         <label class="text-sm text-gray-500">銀行名</label>
         <input id="s-bank-name" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.bank_name)}" />
-        <label class="text-sm text-gray-500">支店名</label>
-        <input id="s-bank-branch" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.bank_branch)}" />
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label class="text-sm text-gray-500">支店名</label>
+            <input id="s-bank-branch" class="w-full border rounded-lg p-3 big-tap" value="${esc(settings.bank_branch)}" />
+          </div>
+          <div>
+            <label class="text-sm text-gray-500">支店番号</label>
+            <input id="s-bank-branch-number" class="w-full border rounded-lg p-3 big-tap" inputmode="numeric" value="${esc(settings.bank_branch_number || '')}" />
+          </div>
+        </div>
         <div class="grid grid-cols-2 gap-3 mb-3">
           <div>
             <label class="text-sm text-gray-500">口座種別</label>
-            <input id="s-bank-type" class="w-full border rounded-lg p-3 big-tap" value="${esc(settings.bank_account_type)}" placeholder="普通/当座" />
+            <select id="s-bank-type" class="w-full border rounded-lg p-3 big-tap">
+              <option value="普通" ${(settings.bank_account_type || '普通') === '普通' ? 'selected' : ''}>普通</option>
+              <option value="当座" ${settings.bank_account_type === '当座' ? 'selected' : ''}>当座</option>
+            </select>
           </div>
           <div>
             <label class="text-sm text-gray-500">口座番号</label>
@@ -1815,6 +1830,7 @@
         email: document.getElementById('s-email').value,
         bank_name: document.getElementById('s-bank-name').value,
         bank_branch: document.getElementById('s-bank-branch').value,
+        bank_branch_number: document.getElementById('s-bank-branch-number').value,
         bank_account_type: document.getElementById('s-bank-type').value,
         bank_account_number: document.getElementById('s-bank-number').value,
         bank_account_holder: document.getElementById('s-bank-holder').value,

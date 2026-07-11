@@ -6,7 +6,7 @@ const settingsRoute = new Hono<{ Bindings: Bindings }>()
 settingsRoute.get('/', async (c) => {
   const s = await c.env.DB.prepare(
     `SELECT company_name, owner_name, postal_code, address, phone, email,
-            bank_name, bank_branch, bank_account_type, bank_account_number, bank_account_holder,
+            bank_name, bank_branch, bank_branch_number, bank_account_type, bank_account_number, bank_account_holder,
             default_fee_percent, default_tax_rate, invoice_prefix
      FROM settings WHERE id = 1`
   ).first()
@@ -24,6 +24,7 @@ settingsRoute.put('/', async (c) => {
     'email',
     'bank_name',
     'bank_branch',
+    'bank_branch_number',
     'bank_account_type',
     'bank_account_number',
     'bank_account_holder',
