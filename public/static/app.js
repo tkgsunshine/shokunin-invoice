@@ -409,7 +409,7 @@
           <label class="text-sm text-gray-500">郵便番号</label>
           <input id="cust-postal" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(customer?.postal_code || '')}" placeholder="例：1050011" />
           <label class="text-sm text-gray-500">住所</label>
-          <input id="cust-address" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(customer?.address || '')}" placeholder="例：東京都港区芝公園1-2-3" />
+          <input id="cust-address" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(customer?.address || '')}" placeholder="例：京都府京都市中京区○○町1-2-3" />
           <label class="text-sm text-gray-500">電話番号</label>
           <input id="cust-phone" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(customer?.phone || '')}" placeholder="例：0312345678" />
           <label class="text-sm text-gray-500">メモ</label>
@@ -1752,7 +1752,7 @@
         <label class="text-sm text-gray-500">郵便番号</label>
         <input id="s-postal" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.postal_code)}" placeholder="例：1050011（入力で住所自動補完）" />
         <label class="text-sm text-gray-500">住所</label>
-        <input id="s-address" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.address)}" placeholder="例：東京都港区芝公園1-2-3" />
+        <input id="s-address" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.address)}" placeholder="例：京都府京都市中京区○○町1-2-3" />
         <label class="text-sm text-gray-500">電話番号</label>
         <input id="s-phone" class="w-full border rounded-lg p-3 mb-3 big-tap" value="${esc(settings.phone)}" placeholder="例：0312345678" />
         <label class="text-sm text-gray-500">メールアドレス</label>
@@ -1766,7 +1766,7 @@
         <div class="grid grid-cols-2 gap-3 mb-3">
           <div>
             <label class="text-sm text-gray-500">支店名</label>
-            <input id="s-bank-branch" class="w-full border rounded-lg p-3 big-tap" value="${esc(settings.bank_branch)}" placeholder="例：渋谷支店" />
+            <input id="s-bank-branch" class="w-full border rounded-lg p-3 big-tap" value="${esc(settings.bank_branch)}" placeholder="例：京都支店" />
           </div>
           <div>
             <label class="text-sm text-gray-500">支店番号</label>
