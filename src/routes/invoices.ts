@@ -142,42 +142,70 @@ invoices.post('/', async (c) => {
   // 自社情報スナップショットを取得
   const issuerSettings = await c.env.DB.prepare('SELECT * FROM settings WHERE id = 1').first<Record<string, unknown>>().catch(() => null)
 
-  const result = await c.env.DB.prepare(
-    `INSERT INTO invoices (customer_id, invoice_number, issue_date, due_date, fee_percent, tax_rate,
-       subtotal_cost, fee_amount, amount_before_tax, tax_amount, total_amount, memo, status,
-       issuer_company_name, issuer_owner_name, issuer_postal_code, issuer_address, issuer_phone, issuer_email,
-       issuer_bank_name, issuer_bank_branch, issuer_bank_branch_number, issuer_bank_account_type,
-       issuer_bank_account_number, issuer_bank_account_holder)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  )
-    .bind(
-      body.customer_id,
-      invoiceNumber,
-      body.issue_date ?? '',
-      body.due_date ?? '',
-      body.fee_percent,
-      TAX_RATE,
-      subtotalCost,
-      feeAmount,
-      amountBeforeTax,
-      taxAmount,
-      totalAmount,
-      body.memo ?? '',
-      body.status ?? 'draft',
-      issuerSettings?.company_name ?? '',
-      issuerSettings?.owner_name ?? '',
-      issuerSettings?.postal_code ?? '',
-      issuerSettings?.address ?? '',
-      issuerSettings?.phone ?? '',
-      issuerSettings?.email ?? '',
-      issuerSettings?.bank_name ?? '',
-      issuerSettings?.bank_branch ?? '',
-      issuerSettings?.bank_branch_number ?? '',
-      issuerSettings?.bank_account_type ?? '',
-      issuerSettings?.bank_account_number ?? '',
-      issuerSettings?.bank_account_holder ?? ''
+  // issuer_*カラムを含むINSERTを試みる（DBマイグレーション済みの場合）
+  // 失敗した場合はissuer_*カラムなしでフォールバック（DBマイグレーション未実行の場合）
+  let result
+  try {
+    result = await c.env.DB.prepare(
+      `INSERT INTO invoices (customer_id, invoice_number, issue_date, due_date, fee_percent, tax_rate,
+         subtotal_cost, fee_amount, amount_before_tax, tax_amount, total_amount, memo, status,
+         issuer_company_name, issuer_owner_name, issuer_postal_code, issuer_address, issuer_phone, issuer_email,
+         issuer_bank_name, issuer_bank_branch, issuer_bank_branch_number, issuer_bank_account_type,
+         issuer_bank_account_number, issuer_bank_account_holder)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run()
+      .bind(
+        body.customer_id,
+        invoiceNumber,
+        body.issue_date ?? '',
+        body.due_date ?? '',
+        body.fee_percent,
+        TAX_RATE,
+        subtotalCost,
+        feeAmount,
+        amountBeforeTax,
+        taxAmount,
+        totalAmount,
+        body.memo ?? '',
+        body.status ?? 'draft',
+        issuerSettings?.company_name ?? '',
+        issuerSettings?.owner_name ?? '',
+        issuerSettings?.postal_code ?? '',
+        issuerSettings?.address ?? '',
+        issuerSettings?.phone ?? '',
+        issuerSettings?.email ?? '',
+        issuerSettings?.bank_name ?? '',
+        issuerSettings?.bank_branch ?? '',
+        issuerSettings?.bank_branch_number ?? '',
+        issuerSettings?.bank_account_type ?? '',
+        issuerSettings?.bank_account_number ?? '',
+        issuerSettings?.bank_account_holder ?? ''
+      )
+      .run()
+  } catch (_e) {
+    // issuer_*カラムが存在しない場合のフォールバック
+    result = await c.env.DB.prepare(
+      `INSERT INTO invoices (customer_id, invoice_number, issue_date, due_date, fee_percent, tax_rate,
+         subtotal_cost, fee_amount, amount_before_tax, tax_amount, total_amount, memo, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        body.customer_id,
+        invoiceNumber,
+        body.issue_date ?? '',
+        body.due_date ?? '',
+        body.fee_percent,
+        TAX_RATE,
+        subtotalCost,
+        feeAmount,
+        amountBeforeTax,
+        taxAmount,
+        totalAmount,
+        body.memo ?? '',
+        body.status ?? 'draft'
+      )
+      .run()
+  }
 
   const invoiceId = result.meta.last_row_id
 
