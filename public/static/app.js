@@ -1721,7 +1721,16 @@
       </div>
     `;
 
-    document.getElementById('print-btn').onclick = () => window.print();
+    document.getElementById('print-btn').onclick = () => {
+      // 印刷用HTMLを別ウィンドウで開く（iOSのSafariでも動作）
+      const printArea = document.getElementById('print-area').innerHTML;
+      const printWin = window.open('', '_blank');
+      if (!printWin) { alert('ポップアップがブロックされています。ブラウザの設定でポップアップを許可してください。'); return; }
+      printWin.document.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求書</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;font-size:14px;color:#111;background:#fff;padding:24px}table{width:100%;border-collapse:collapse}th,td{padding:6px 8px}th{font-weight:bold}.text-left{text-align:left}.text-right{text-align:right}.text-center{text-align:center}.font-bold{font-weight:bold}.text-sm{font-size:12px}.text-xs{font-size:11px}.text-base{font-size:14px}.text-lg{font-size:16px}.text-2xl{font-size:22px}.text-3xl{font-size:26px}.text-gray-500{color:#6b7280}.text-gray-600{color:#4b5563}.text-gray-700{color:#374151}.text-blue-800{color:#1e40af}.text-blue-900{color:#1e3a8a}.text-emerald-600{color:#059669}.bg-blue-100{background:#dbeafe}.bg-blue-600{background:#2563eb}.border-b{border-bottom:1px solid #e5e7eb}.border-b-2{border-bottom:2px solid}.border-gray-800{border-color:#1f2937}.border-t{border-top:1px solid #e5e7eb}.border-t-2{border-top:2px solid #93c5fd}.border-collapse{border-collapse:collapse}.flex{display:flex}.justify-between{justify-content:space-between}.justify-end{justify-content:flex-end}.items-start{align-items:flex-start}.items-center{align-items:center}.gap-2{gap:8px}.mb-1{margin-bottom:4px}.mb-2{margin-bottom:8px}.mb-4{margin-bottom:16px}.mb-6{margin-bottom:24px}.mb-8{margin-bottom:32px}.mt-4{margin-top:16px}.pb-1{padding-bottom:4px}.py-1{padding-top:4px;padding-bottom:4px}.py-2{padding-top:8px;padding-bottom:8px}.pt-4{padding-top:16px}.px-2{padding-left:8px;padding-right:8px}.px-4{padding-left:16px;padding-right:16px}.w-16{width:64px}.w-14{width:56px}.w-28{width:112px}.w-24{width:96px}.w-64{width:256px}.inline-block{display:inline-block}.rounded-xl{border-radius:12px}.rounded-l{border-radius:4px 0 0 4px}.rounded-r{border-radius:0 4px 4px 0}.overflow-hidden{overflow:hidden}.text-white{color:#fff}.font-normal{font-weight:normal}.ml-1{margin-left:4px}.hover\\:bg-blue-50:hover{background:#eff6ff}@media print{body{padding:0}@page{margin:15mm}}</style></head><body>${printArea}</body></html>`);
+      printWin.document.close();
+      printWin.focus();
+      setTimeout(() => { printWin.print(); }, 500);
+    };
     document.getElementById('del-invoice-btn').onclick = async () => {
       if (!confirm('この請求書を削除しますか？')) return;
       await api('delete', `/api/invoices/${invoice.id}`);
