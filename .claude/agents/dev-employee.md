@@ -28,6 +28,7 @@ tools: Read, Grep, Glob, Bash, Edit, Write
   "date": "2026-10-03",
   "summary": "その日の全体を1〜2文で",
   "attention": ["ユーザーの判断が本当に必要なことだけ"],
+  "todo": [{"text": "あなたがやること（未完了）", "since": "2026-10-01"}],
   "repos": {
     "shokunin-invoice": {
       "status": "ok | warn | alert | idle",
@@ -41,6 +42,7 @@ tools: Read, Grep, Glob, Bash, Edit, Write
 }
 ```
 - `summary` / `attention` / `done` は日付ドキュメント全体で共有。後から書く側は既存内容に追記・統合し、上書きで消さない。
+- `todo`: 人間（ユーザー）にしかできず、まだ終わっていない作業の一覧。例: PRのレビュー/マージ、GitHub SecretsやVercel環境変数の設定、本番デプロイの実行指示、外部サービスの設定。前日の日報の `todo` を引き継ぎ、完了を確認できたものは外し、新たに見つけたものを足す。`since` は初めて載せた日。完了/未完了はGitHub等で確認できた事実で判断し、推測で外さない。`attention`（判断を仰ぐ）とは別。無ければ空配列。
 - `status`: ビルド失敗・CI赤・未解決の障害は `alert`、確認待ち・要注意は `warn`、通常は `ok`。
 - `attention` は人間の承認が要る事項（価格表記、本番への影響、削除・破壊的操作など）に限る。無ければ空配列。
 
