@@ -7,3 +7,5 @@ Antigravity(AG)から Claude Code(CC)へ引き継ぎ済み。今後の開発はC
 - 環境変数（値はリポジトリに置かない）: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `BLOB_READ_WRITE_TOKEN`。
 - DBスキーマ変更は `migrations/` に追加する形で行い、本番DBへの適用は確認してから。
 - 作業ブランチで変更し、PRで反映する。事実は検証してから報告する。
+
+- 開発アイデア: ユーザーが新機能・改善のアイデアを話したら、`.claude/agents/dev-employee.md` の「今後の開発アイデアの保存」に従い、日報ダッシュボード（https://claude.ai/artifact/VCP5kV7TA7NDHjZe9d4gNF）の `dev_ideas` に保存する（実装は依頼があるまでしない）。
