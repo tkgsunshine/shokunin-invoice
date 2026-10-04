@@ -28,7 +28,6 @@ tools: Read, Grep, Glob, Bash, Edit, Write
   "date": "2026-10-03",
   "summary": "その日の全体を1〜2文で",
   "attention": ["ユーザーの判断が本当に必要なことだけ"],
-  "todo": [{"text": "あなたがやること（未完了）", "since": "2026-10-01"}],
   "repos": {
     "shokunin-invoice": {
       "status": "ok | warn | alert | idle",
@@ -42,7 +41,6 @@ tools: Read, Grep, Glob, Bash, Edit, Write
 }
 ```
 - `summary` / `attention` / `done` は日付ドキュメント全体で共有。後から書く側は既存内容に追記・統合し、上書きで消さない。
-- `todo`: 人間（ユーザー）にしかできず、まだ終わっていない作業の一覧。例: PRのレビュー/マージ、GitHub SecretsやVercel環境変数の設定、本番デプロイの実行指示、外部サービスの設定。前日の日報の `todo` を引き継ぎ、完了を確認できたものは外し、新たに見つけたものを足す。`since` は初めて載せた日。完了/未完了はGitHub等で確認できた事実で判断し、推測で外さない。`attention`（判断を仰ぐ）とは別。無ければ空配列。
 - `status`: ビルド失敗・CI赤・未解決の障害は `alert`、確認待ち・要注意は `warn`、通常は `ok`。
 - `attention` は人間の承認が要る事項（価格表記、本番への影響、削除・破壊的操作など）に限る。無ければ空配列。
 
@@ -51,11 +49,23 @@ tools: Read, Grep, Glob, Bash, Edit, Write
 - 失敗や未実施は隠さずそのまま書く。原因は検証できたものだけ断定する。
 - 日報を書くために、依頼のないファイル変更や本番の仕組み（`.github/workflows/` の公開用workflow等）の変更をしない。
 
-## 今後の開発アイデアの保存
-ユーザーが新機能や改善のアイデアを話したら、日報ダッシュボードのコレクション `dev_ideas` に1件1ドキュメントで保存する（`ArtifactData` の `set`）。ドキュメントIDは `YYYYMMDD-HHMMSS`（JST、重複時は末尾に連番）。
+## ホーム（中長期のタスクとアイデア）
+日報（毎日の記録）とは別に、残タスクと開発アイデアは中長期で残るため、ホームのダッシュボード（https://claude.ai/artifact/9eu8jRktA8nGCC8HKN7L8A）のDBに保存する。日報はホームの下層。
+
+### 残タスク（コレクション `tasks`）
+ユーザー本人にしかできず未完了の作業（PRのレビュー/マージ、GitHub SecretsやVercel環境変数の設定、本番デプロイの実行指示、外部サービスの設定など）。日報を書くたびに次を行う（`ArtifactData` で `https://claude.ai/artifact/9eu8jRktA8nGCC8HKN7L8A` を対象にする）。
+- `tasks` を `list` し、`status: "open"` の既存項目と重複しないものを `set` で追加。
+- 完了をGitHub等の事実で確認できた項目は `update` で `status: "done"`, `doneAt: "YYYY-MM-DD"` にする。推測で完了にしない。
 ```json
-{"created": "2026-10-04T10:15:00+09:00", "date": "2026-10-04", "repo": "shokunin-invoice | 共通", "text": "ユーザーの言葉を要約せず、意図が分かる形で1〜3文", "status": "idea"}
+{"text": "やること", "area": "dev", "repo": "shokunin-invoice", "since": "2026-10-04", "status": "open"}
 ```
-- `status`: `idea`（アイデア）/ `planned`（着手予定）/ `doing`（開発中）/ `done`（実装済み）/ `dropped`（見送り）。ユーザーが指示したときだけ更新する。
-- 対象リポジトリが分からないときは確認せず `共通` で保存する。保存したら「保存した」と1行で返す。
-- 実装はユーザーが依頼するまで始めない。アイデアの勝手な取捨選択・書き換えをしない。
+ドキュメントIDは `YYYYMMDD-HHMMSS`（JST）。日報ドキュメントに `todo` は書かない。
+
+### 開発アイデア（コレクション `ideas`）
+ユーザーが新機能や改善のアイデアを話したら、ホームのDBの `ideas` に1件1ドキュメントで保存する（`set`）。IDは `YYYYMMDD-HHMMSS`（JST）。
+```json
+{"created": "2026-10-04T10:15:00+09:00", "date": "2026-10-04", "area": "dev", "repo": "shokunin-invoice | 共通", "text": "意図が分かる形で1〜3文", "status": "idea"}
+```
+- `status`: `idea` / `planned` / `doing` / `done` / `dropped`。ユーザーが指示したときだけ更新する（ホーム画面からも本人が変更できる）。
+- 対象リポジトリが分からないときは確認せず `共通` で保存し、「保存した」と1行で返す。
+- 実装は依頼があるまで始めない。アイデアの勝手な取捨選択・書き換えをしない。
