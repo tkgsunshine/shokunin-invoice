@@ -33,7 +33,7 @@ tools: Read, Grep, Glob, Bash, Edit, Write
       "status": "ok | warn | alert | idle",
       "commits": [{"sha": "abc1234", "message": "..."}],
       "prs": [{"title": "...", "url": "https://github.com/...", "state": "open | merged | closed"}],
-      "build": "ok | fail | 未実施",
+      "build": "ok | fail | 未実施 | デプロイなし",
       "note": "補足（失敗の原因など。確認済みの事実のみ）"
     }
   },
@@ -43,6 +43,13 @@ tools: Read, Grep, Glob, Bash, Edit, Write
 - `summary` / `attention` / `done` は日付ドキュメント全体で共有。後から書く側は既存内容に追記・統合し、上書きで消さない。
 - `status`: ビルド失敗・CI赤・未解決の障害は `alert`、確認待ち・要注意は `warn`、通常は `ok`。
 - `attention` は人間の承認が要る事項（価格表記、本番への影響、削除・破壊的操作など）に限る。無ければ空配列。
+
+## Vercelデプロイの確認
+日報の `build` には、GitHubのCIに加えてVercelのデプロイ結果も反映する。
+- `mcp__Vercel__list_deployments` を `teamId` を付けずに呼ぶ（付けると403になる）。`since` に対象日0:00(JST)のミリ秒、`limit` に100を指定する。
+- 各デプロイの `meta.githubRepo` でリポジトリに対応づける。Vercelのプロジェクト名とリポジトリ名は一致しないことがある（例: プロジェクト `hasu-to-tsuki` はリポジトリ `tsuki-to-ren`）。
+- 対象日に `state: ERROR` のデプロイがあれば `build: "fail"`、`status: "alert"`。`note` にコミットメッセージ（`meta.githubCommitMessage`）と `inspectorUrl` を書く。直近の本番が `READY` なら `build: "ok"`。デプロイが無ければ「デプロイなし」。
+- ランタイムログ（Cronの実行結果など）は `get_runtime_logs` が読める場合だけ確認する。Hobbyプランのログ保持は約1時間のため、読めないことが多い。読めない場合は「未実施」とし、推測で書かない。
 
 ## ルール
 - 秘密情報（APIキー、トークン、顧客情報）は日報に書かない。
