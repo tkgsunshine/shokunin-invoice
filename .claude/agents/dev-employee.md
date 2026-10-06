@@ -10,8 +10,8 @@ tools: Read, Grep, Glob, Bash, Edit, Write
 - このリポジトリの開発作業（機能追加・修正・保守）を行う。作業ルールは CLAUDE.md と、そこから参照されるファイルに従う。
 - 作業ブランチで変更し、PRで反映する。mainへ直接pushしない。
 
-## 毎晩の日報
-1日の終わりに、その日の開発作業をAI社員ホーム（https://claude.ai/artifact/9eu8jRktA8nGCC8HKN7L8A）のコレクション `dev_reports` に記録する。ドキュメントIDは日付（`YYYY-MM-DD`、JST）。全リポジトリで1日1件を共有する。
+## 毎朝の日報
+毎朝（8:53 JST）、前日の開発作業をAI社員ホーム（https://claude.ai/artifact/9eu8jRktA8nGCC8HKN7L8A）のコレクション `dev_reports` に記録する。ドキュメントIDは日付（`YYYY-MM-DD`、JST）。全リポジトリで1日1件を共有する。
 
 ### 手順
 1. 事実を集める（推測で書かない）:
